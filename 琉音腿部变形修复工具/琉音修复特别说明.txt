@@ -1,0 +1,76 @@
+ 修复腿部弯曲的注意事项：
+      使用过2.5A修复工具或者香蕉网上的修复工具或手动修改过ini的，
+      需要恢复原始备份ini文件，重新修复，否则无法解决该问题。
+      必须使用旧ini文件和旧buf文件，否则无法修复。因为只有在修旧ini文件时会同时自动修复旧buf文件。
+      修复需谨慎，该工具会在更新缓冲区时自动备份原始的buf格式的文件，
+      如果产生异常，可修改备份文件名为原来的名字。
+      如果你仍然无法解决，那么请去作者那里重新下载Mod，再进行修复。
+      优先运行版本修复工具后仍然变形，再去使用琉音腿部变形修复工具。     
+
+【琉音修复腿部弯曲的特别说明】
+
+已经有专用修复工具完美解决该问题，以下内容可作参考
+修复原理：
+
+1.检测ini文件是否含有hash = 6ff0e4ad（前面没有加;进行注释）。
+
+2.检测hash = 6ff0e4ad所在节是否含有vb2 = 某个资源名称。
+
+3.在将hash = 6ff0e4ad更新为hash = 3d7e53cf的同时，对其节中对应的buf文件进行更新。
+
+特别异常说明：
+
+1.hash = 6ff0e4ad所在节中没有对应的buf文件，此时工具判定只更新hash值。
+
+如果你修复后发现仍然出现腿部异常，是因为节中对应的 vb2 = 某个资源名称 在其他的节中，比如以下代码
+
+[TextureOverride_VB_af39a873_身体_Position]
+hash = ff36809b
+vb0 = Resourceaf39a873Position
+vb2 = Resourceaf39a873Blend
+handling = skip
+draw = 107533, 0
+$active1 = 1
+$ActiveCharacter = 1
+
+[TextureOverride_VB_af39a873_身体_Texcoord]
+hash = 3f2079bc
+vb1 = Resourceaf39a873Texcoord
+
+[TextureOverride_VB_af39a873_身体_Blend]
+
+hash = 6ff0e4ad
+
+可以看到 vb2 = 某个资源名称 在hash = ff36809b对应的节中，此时需要把它复制到hash = 6ff0e4ad的节中
+
+[TextureOverride_VB_af39a873_身体_Position]
+hash = ff36809b
+vb0 = Resourceaf39a873Position
+vb2 = Resourceaf39a873Blend
+handling = skip
+draw = 107533, 0
+$active1 = 1
+$ActiveCharacter = 1
+
+[TextureOverride_VB_af39a873_身体_Texcoord]
+hash = 3f2079bc
+vb1 = Resourceaf39a873Texcoord
+
+[TextureOverride_VB_af39a873_身体_Blend]
+hash = 6ff0e4ad
+vb2 = Resourceaf39a873Blend
+
+然后运行修复工具，会提示写入更新的缓冲区，此时修复完成，删除刚才复制到hash = 6ff0e4ad的节中的内容
+
+[TextureOverride_VB_af39a873_身体_Blend]
+hash = 3d7e53cf
+; hash = 6ff0e4ad
+
+修复腿部弯曲的注意事项：
+      使用过2.5A修复工具或者香蕉网上的修复工具或手动修改过ini的，
+      需要恢复原始备份ini文件，重新修复，否则无法解决该问题。
+      必须使用旧ini文件和旧buf文件，否则无法修复。因为在修旧ini文件时
+      会同时自动修复旧buf文件。
+      修复需谨慎，该工具会在更新缓冲区时自动备份原始的buf格式的文件，
+      如果产生异常，可修改备份文件名为原来的名字。
+      如果你仍然无法解决，那么请去作者那里重新下载Mod，再进行修复。

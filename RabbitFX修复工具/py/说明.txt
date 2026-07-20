@@ -1,0 +1,23 @@
+- 要求 -
+需要安装Python。
+
+使用方法：
+
+只需将RabbitFXFixer.py放入你的模组文件夹即可
+并使用以下命令运行它：
+
+运行Python脚本 RabbitFXFixer.py
+
+它会扫描所在文件夹内的所有.ini文件
+查找所有包含ps-t17和ps-t18的行。
+
+它随后将用Resource\RabbitFX\GlowMap和FXMap替换那些行
+分别适配新的RabbitFX格式。
+
+它还会创建原始数据的备份，以防需要恢复。
+
+- 恢复备份 -
+
+运行RabbitFXFixer并添加恢复参数
+
+python RabbitFXFixer.py --restore
