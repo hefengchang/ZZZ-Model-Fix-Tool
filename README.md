@@ -1,2 +1,7 @@
 # ZZZ-Model-Fix-Tool
-ZZZ Repair Tool Collection. 
+ZZZ修复工具合集。
+
+⚠️ 免责声明 / Disclaimer
+本工具仅用于修复因游戏 Hash 更新等原因导致的 Mod 文件损坏问题。
+本工具完全独立于游戏本体，不包含任何游戏代码或资产。
+本工具仅供学习交流，永久免费。请遵守游戏官方的 EULA 协议，因使用第三方工具产生的任何账号风险由用户自行承担。
