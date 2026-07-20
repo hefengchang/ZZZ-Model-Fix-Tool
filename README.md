@@ -1,8 +1,8 @@
 # ZZZ-Model-Fix-Tool
 
-ZZZ 修复工具集合。本项目的代码基于香蕉网（Banana Network）的开源/公开资源进行二次开发与整合。项目包含大量中文内容，请使用 AI 辅助理解。
+ZZZ 修复工具集合。本项目的代码基于香蕉网（Banana Network）的开源/公开资源进行二次开发与整合。由于本人英文很差，所以项目包含大量中文内容，请使用 AI 辅助理解。
 
-ZZZ Repair Tool Collection. The code in this project is based on secondary development and integration of public resources from Banana Network. This project contains a significant amount of Chinese content; please use AI tools to understand it at your own discretion.
+ZZZ Repair Tool Collection. This project is developed and integrated based on open-source/public resources from Banana Network. Please note that the project contains a significant amount of Chinese content due to my limited English proficiency. Feel free to use AI tools for translation and comprehension.
 
 ---
 
