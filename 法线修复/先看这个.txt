@@ -1,0 +1,37 @@
+当mod的身体和头发出现很多线条阴影之类的情况时使用。
+
+将"法线修复-将此文件夹放入Mods文件夹即可"这个文件夹放入Mods文件夹(你放mod的那个)中。(XXMI用户无需此修复插件)
+如果是在d3d管理器中，则直接以添加mod的形式将压缩包添加到管理器中。
+
+
+无法修复的，下面给出修复说明（需要点手动能力）：
+0.完全卸载当前使用的法线修复mod（d3dx可以使用缓存清理工具），然后重启软件和游戏，重新安装法线修复工具。
+1.先看这几篇讲解内容----https://gamebanana.com/tuts/18826      https://gamebanana.com/tuts/18114
+2.确认该mod的每个部位是否有'ps-t4 ='这个槽位
+3.如果没有则为mod添加ps-t4的槽位,仅需要添加ps-t4的槽位,需要注意的是有些mod进行了跨ib渲染，需要在其他的ib部位添加ps-t4.
+4.如果没有ps-t4的NormalMap贴图，就去角色的其他mod里找一个,或者用法线修复里的那个贴图，注意改名字
+
+5.以下为示例一：
+  [TextureOverrideBelle.Body.IB]
+  hash = 1817f3ca
+  run = CommandListSkinTexture
+  match_priority = 0
+  ps-t4 = Resource_Texture_c0bd8516.0
+
+  [Resource_Texture_c0bd8516.0]
+  filename = .\base\1817f3ca_c0bd8516_NormalMap.dds
+
+5.以下为示例二：
+  [TextureOverrideaf63e974Head]
+  hash = af63e974
+  match_first_index = 0
+  run = CommandListSkinTexture
+  ib = Resourceaf63e974Head
+  ps-t4 = Resource_af63e974-0f2c69e2-1-NormalMap
+
+
+  [Resource_af63e974-0f2c69e2-1-NormalMap]
+  filename = af63e974-0f2c69e2-1-NormalMap.dds
+
+6.完整版对比示例--查看手动修复示例文件(建议使用Notepad++软件查看)
+

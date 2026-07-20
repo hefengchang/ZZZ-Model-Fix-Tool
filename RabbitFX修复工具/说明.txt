@@ -1,0 +1,22 @@
+适用于RabbitFX6.0之后的版本，用于修复旧版本的发光代码，具体说明前往香蕉网https://gamebanana.com/mods/531649
+
+部分旧版本mod的发光代码有问题，需要手动修复，详情可在版本的更新说明里看到，也可以在官方的评论区寻找解决办法。
+
+如何使用：
+
+只需将RabbitFXFixer.exe放入mods文件夹并运行即可。
+
+它将扫描其所在的文件夹中是否有.ini文件
+并查找所有包含ps-t17和ps-t18的行。
+
+然后，它将用Resource\RabitFX\GlowMap和FXMap替换这些行
+以匹配新的RabbitFX格式。
+
+它还将创建原始文件的备份，以防需要还原。
+
+-恢复备份-
+
+只需在模组文件夹中使用Restore backup.bat，
+或者使用参数--restore运行RabbitFXFixer.exe。
+
+如果您更喜欢手动操作，只需从文件的名称删除DISABLED_RABBITFXBACKUP_

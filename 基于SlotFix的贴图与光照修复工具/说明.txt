@@ -1,0 +1,11 @@
+作用：用于修复仰视时光照变暗或出现阴影线条。将旧版mod中使用了槽位替换ps-t3/4/5/6的内容进行更新适配SlotFix插件。
+同时解决了非XXMI用户的贴错错乱问题（由于使用slotfix格式导致）。
+
+
+将exe程序放入需要修复的mod文件夹，双击运行。
+
+将‘贴图修复插件SlotFix’文件夹里的‘SlotFix’文件夹放入Mods文件夹里，并保证只存在一个。(XXMI用户无需此修复插件)
+
+更新与说明地址：https://www.caimogu.cc/post/2095785.html
+
+软件会自动备份被修复的ini文件，以‘disabled-beifen’为前缀名。如果修复后产生损坏，可删除现有ini文件，恢复同名的备份ini文件（删除‘disabled-beifen’前缀）。
