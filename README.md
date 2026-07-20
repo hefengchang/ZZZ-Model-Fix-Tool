@@ -1,7 +1,7 @@
 # ZZZ-Model-Fix-Tool
-ZZZ修复工具合集。
+ZZZ Repair Tool Collection. All the code comes from Banana Net and my own. Contains a large amount of Chinese content, please use AI to understand on your own.
 
-⚠️ 免责声明 / Disclaimer
-本工具仅用于修复因游戏 Hash 更新等原因导致的 Mod 文件损坏问题。
-本工具完全独立于游戏本体，不包含任何游戏代码或资产。
-本工具仅供学习交流，永久免费。请遵守游戏官方的 EULA 协议，因使用第三方工具产生的任何账号风险由用户自行承担。
+⚠️  Disclaimer/Disclaimer
+This tool is only used to fix mod file corruption issues caused by game hash updates and other reasons.
+This tool is completely independent of the game itself and does not contain any game code or assets.
+This tool is only for learning and communication purposes and is permanently free of charge. Please comply with the official EULA agreement of the game, and any account risks arising from the use of third-party tools shall be borne by the user.
