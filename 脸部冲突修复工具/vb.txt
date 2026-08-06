@@ -1,0 +1,41 @@
+# ============================================================
+#  ZZZ 角色 Mod 冲突修复 —— 哈希对照表
+# ============================================================
+#  修复程序按此表定位冲突节：命中 position_vb 的节内容移入角色专属的
+#  blend 节（XXMI 新格式），命中 position_wallpaper_vb 的节只保留 hash 行。
+#
+#  【格式】每个角色一段：
+#    角色名
+#    position_vb: 正常 position 哈希（内容迁移进 blend 节）
+#    position_wallpaper_vb: 背景/变体哈希（可选，仅保留 hash 行）
+#    blend_vb: 角色专属 blend 哈希（有多个版本都列上）
+#
+#  【添加新角色】在文末照格式追加一段即可，程序无需改动。
+#  哈希从该角色的 mod 的 ini 中获取：
+#    position_vb            ← [TextureOverrideXXXPosition] 节的 hash
+#    blend_vb               ← [TextureOverrideXXXBlend] 节的 hash
+#    position_wallpaper_vb  ← *PositionWallpaper / *Position2 等变体节的 hash
+#  示例：
+#    简
+#    position_vb: 87654321
+#    blend_vb: 22222222,33333333
+#
+#  【游戏更新】只需追加新哈希，无需删除旧的：在对应角色名下补一行
+#  position_vb / position_wallpaper_vb / blend_vb 即可，新旧哈希都会识别。
+#
+#  【注意】
+#   1. 角色名任意文字，定位靠哈希，与 mod 内资源名无关；
+#   2. 多个哈希用英文逗号分隔，或分多行写；注释掉的 hash（; hash = xxx）
+#      同样参与定位；
+#   3. 只有"确认会与其他角色冲突"的哈希才需要列入（如露西头发 6c733c84），
+#      body/hide 等未冲突部件无需列入。
+# ============================================================
+
+露西
+position_vb: 6c733c84
+position_wallpaper_vb: 39cfd24c,9b4dfd86
+blend_vb: a37c7537,5315f036
+
+青衣
+position_vb: a5783704
+blend_vb: 57c9f0a3

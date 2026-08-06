@@ -16,6 +16,8 @@ if sys.platform == 'win32':
 请勿在同一琉音Dialy mod上多次运行此重新映射脚本。
 '''
 
+# 以脚本自身所在目录为基准（通过“打开方式”启动时，当前工作目录可能是 C:\Windows\system32）
+BASE_DIR = Path(__file__).resolve().parent
 
 POSITION_HASH = 'ff36809b'
 OLD_VGX = [18, 19, 20, 54, 55, 56, 57, 58, 59, 60, 61, 62, 69, 70, 71, 72, 91, 92, 93, 94, 95, 96, 97, 98, 113, 114, 128, 129, 130, 131, 132, 188, 189]
@@ -110,12 +112,12 @@ def get_marker_filepath(blend_filepath: Path):
 
 
 def main():
-    print('文件路径: {}'.format(Path('.').absolute()))
+    print('文件路径: {}'.format(BASE_DIR))
     print('琉音Dialy身体Blend混合重制射 v2.5')
     print()
 
     blend_filepaths: list[Path] = []
-    for ini_filepath in process_folder(Path('.')):
+    for ini_filepath in process_folder(BASE_DIR):
         try:
             blend_filepaths.extend(get_blend_filepaths(ini_filepath))
         except:

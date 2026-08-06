@@ -13,6 +13,8 @@ from pathlib import Path
     Thanks to Hazel for help finding old/new vgx changes and SilentNightSound for suggesting safeguard.
 '''
 
+# Use the script's own directory as the base (when launched via "Open With", CWD may be C:\Windows\system32)
+BASE_DIR = Path(__file__).resolve().parent
 
 POSITION_HASH = 'ba0fe600'
 OLD_VGX = [34, 35, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 49, 50]
@@ -107,12 +109,12 @@ def get_marker_filepath(blend_filepath: Path):
 
 
 def main():
-    print('CWD: {}'.format(Path('.').absolute()))
+    print('Script directory: {}'.format(BASE_DIR))
     print('ELLEN 1.4A HAIR REMAP')
     print()
 
     blend_filepaths: list[Path] = []
-    for ini_filepath in process_folder(Path('.')):
+    for ini_filepath in process_folder(BASE_DIR):
         try:
             blend_filepaths.extend(get_blend_filepaths(ini_filepath))
         except:
