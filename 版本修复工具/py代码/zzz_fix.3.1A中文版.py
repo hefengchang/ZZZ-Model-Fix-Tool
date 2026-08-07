@@ -6969,6 +6969,7 @@ hash_commands = {
     '48625d6d': [(log, ('3.1: Sigrid Face IB Hash',)), (add_ib_check_if_missing,)],
     '84618ee0': [(log, ('3.1: Sigrid Hair IB Hash',)), (add_ib_check_if_missing,)],
     'b20f90ea': [(log, ('3.1: Sigrid Leg IB Hash',)), (add_ib_check_if_missing,)],
+    'b30db54e': [(log, ('3.1: Sigrid Tail IB Hash',)), (add_ib_check_if_missing,)],
     #VB
     #Texture纹理
     # Face脸部
@@ -7033,6 +7034,40 @@ hash_commands = {
         (multiply_section_if_missing,   ('f5da0fcd', 'Sigrid.HairA.MaterialMap.2048')),
     ],
     
+
+
+    # MARK: SigridSkin希格莉德皮肤
+    'd9e49957': [(log, ('3.1: SigridSkin Body IB Hash',)), (add_ib_check_if_missing,)],
+    'd892c658': [(log, ('3.1: SigridSkin Rotor IB Hash',)), (add_ib_check_if_missing,)],
+    'b4f608f5': [(log, ('3.1: SigridSkin RotorBearing IB Hash',)), (add_ib_check_if_missing,)],
+    '285aa61f': [(log, ('3.1: SigridSkin Spear IB Hash',)), (add_ib_check_if_missing,)],
+    
+    # Body
+    'b07c43ef': [
+        (log,                           ('3.1: SigridSkin BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('82a7f32e', 'SigridSkin.BodyA.Diffuse.1024')),
+    ],
+    '82a7f32e': [
+        (log,                           ('3.1: SigridSkin BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('b07c43ef', 'SigridSkin.BodyA.Diffuse.2048')),
+    ],
+    '5e907c41': [
+        (log,                           ('3.1: SigridSkin BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('1b4edd7b', 'SigridSkin.BodyA.LightMap.1024')),
+    ],
+    '1b4edd7b': [
+        (log,                           ('3.1: SigridSkin BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('5e907c41', 'SigridSkin.BodyA.LightMap.2048')),
+    ],
+    'e104d477': [
+        (log,                           ('3.1: SigridSkin BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('aa626489', 'SigridSkin.BodyA.MaterialMap.1024')),
+    ],
+    'aa626489': [
+        (log,                           ('3.1: SigridSkin BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('e104d477', 'SigridSkin.BodyA.MaterialMap.2048')),
+    ],
+
 
 
     # MARK: Soldier0零号安比
@@ -7925,6 +7960,7 @@ hash_commands = {
     'fe89498c': [(log, ('2.0 -> 2.1: Wise Hair Texcoord Hash',)), (update_hash, ('774071dd',))],
     '1273c7b0': [(log, ('2.0 -> 2.1: Wise Hair Blend Hash',)), (update_hash, ('edfd1666',))],
     'edfd1666': [(log, ('2.8 -> 3.0: Wise Hair Blend Hash',)), (update_hash, ('68e4f572',))],
+    '83e07a1b': [(log, ('2.0 -> 2.1: Wise HairShadow IB Hash',)),  (update_hash, ('8d08b190',))],
 
     '4894246e': [(log, ('1.5 -> 1.6: Wise Face IB Hash',)),       (update_hash, ('1fdaf388',))],
     #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
@@ -8027,7 +8063,6 @@ hash_commands = {
     # MARK: WiseSchoolUniform哲校服
     #IB
     '22fe3236': [(log, ('3.0: WiseSchoolUniform Body IB Hash',)), (add_ib_check_if_missing,)],
-    '8d08b190': [(log, ('3.0: WiseSchoolUniform HairShadow IB Hash',)), (add_ib_check_if_missing,)],
     '8a1ec07e': [(log, ('3.0: WiseSchoolUniform Neck IB Hash',)), (add_ib_check_if_missing,)],
     'f21a2bac': [(log, ('3.0: WiseSchoolUniform Tie IB Hash',)), (add_ib_check_if_missing,)],
     #VB
