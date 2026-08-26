@@ -754,20 +754,33 @@ class transfer_indexed_sections():
             else:
                 missing.append(src_index)
 
-        # 原地改写 match_first_index：只动配对的节，其余一律不碰
+        # 原地改写 match_first_index / match_index_count：只动配对的节，其余一律不碰
+        # （match_index_count 是分段边界：前一段的 count 常等于后一段的 first_index，
+        #   所以 count 也参与同一张位置映射，即使该节自身的 first_index 未变）
         new_content = ''
         prev_end    = 0
         migrated    = 0
         for m in section_matches:
             new_content += ini.content[prev_end:m.start()]
 
-            idx = re.search(r'\n\s*match_first_index\s*=\s*([\d]+)', m.group(1), flags=re.IGNORECASE)
+            new_section = m.group(0)
+            idx = re.search(r'\n\s*match_first_index\s*=\s*([\d]+)', new_section, flags=re.IGNORECASE)
             if idx and idx.group(1) in remap and remap[idx.group(1)] != idx.group(1):
                 new_section = re.sub(
                     r'(\n\s*match_first_index\s*=\s*)[\d]+',
                     r'\g<1>' + remap[idx.group(1)],
-                    m.group(0), count=1, flags=re.IGNORECASE
+                    new_section, count=1, flags=re.IGNORECASE
                 )
+
+            cnt = re.search(r'\n\s*match_index_count\s*=\s*([\d]+)', new_section, flags=re.IGNORECASE)
+            if cnt and cnt.group(1) in remap and remap[cnt.group(1)] != cnt.group(1):
+                new_section = re.sub(
+                    r'(\n\s*match_index_count\s*=\s*)[\d]+',
+                    r'\g<1>' + remap[cnt.group(1)],
+                    new_section, count=1, flags=re.IGNORECASE
+                )
+
+            if new_section != m.group(0):
                 new_content += new_section
                 migrated += 1
             else:
@@ -6965,12 +6978,23 @@ hash_commands = {
 
 
     # MARK: Sigrid希格莉德
-    'a23aa8a3': [(log, ('3.1: Sigrid Body IB Hash',)), (add_ib_check_if_missing,)],
+    '38daef11': [(log, ('3.11: Sigrid Body IB Hash',)), (add_ib_check_if_missing,)],
     '48625d6d': [(log, ('3.1: Sigrid Face IB Hash',)), (add_ib_check_if_missing,)],
     '84618ee0': [(log, ('3.1: Sigrid Hair IB Hash',)), (add_ib_check_if_missing,)],
     'b20f90ea': [(log, ('3.1: Sigrid Leg IB Hash',)), (add_ib_check_if_missing,)],
     'b30db54e': [(log, ('3.1: Sigrid Tail IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    'a23aa8a3': [
+        (log, ('3.1 -> 3.11: Sigrid Body IB Hash',)), 
+        (update_hash, ('38daef11',)),
+        (transfer_indexed_sections, {
+            'src_indices': ['0', '42759'],
+            'trg_indices': ['0', '42963'],
+        })],
+    '8c0622d7': [(log, ('3.11: Sigrid Body-身体 blend_vb Hash',)), (update_hash, ('018ea72c',))],
+    '01b35c45': [(log, ('3.11: Sigrid Body-身体 draw_vb Hash',)), (update_hash, ('d0bf0e87',))],
+    '08c15b45': [(log, ('3.11: Sigrid Body-身体 position_vb Hash',)), (update_hash, ('e2a28287',))],
+    'f6474154': [(log, ('3.11: Sigrid Body-身体 texcoord_vb Hash',)), (update_hash, ('08ddaed3',))],
     #Texture纹理
     # Face脸部
     '18b20f06': [
@@ -7043,21 +7067,25 @@ hash_commands = {
     '285aa61f': [(log, ('3.1: SigridSkin Spear IB Hash',)), (add_ib_check_if_missing,)],
     
     # Body
-    'b07c43ef': [
-        (log,                           ('3.1: SigridSkin BodyA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   ('82a7f32e', 'SigridSkin.BodyA.Diffuse.1024')),
+    'b07c43ef': [(log, ('3.1 -> 3.1B: SigridSkin BodyA Diffuse 2048p Hash',)), (update_hash, ('8874c184',))],
+    '8874c184': [
+        (log,                           ('3.1B: SigridSkin BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   (('82a7f32e','3a0cfbd4'), 'SigridSkin.BodyA.Diffuse.1024')),
     ],
-    '82a7f32e': [
-        (log,                           ('3.1: SigridSkin BodyA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   ('b07c43ef', 'SigridSkin.BodyA.Diffuse.2048')),
+    '82a7f32e': [(log, ('3.1 -> 3.1B: SigridSkin BodyA Diffuse 1024p Hash',)), (update_hash, ('3a0cfbd4',))],
+    '3a0cfbd4': [
+        (log,                           ('3.1B: SigridSkin BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   (('b07c43ef','8874c184'), 'SigridSkin.BodyA.Diffuse.2048')),
     ],
-    '5e907c41': [
-        (log,                           ('3.1: SigridSkin BodyA LightMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('1b4edd7b', 'SigridSkin.BodyA.LightMap.1024')),
+    '5e907c41': [(log, ('3.1 -> 3.1B: SigridSkin BodyA LightMap 2048p Hash',)), (update_hash, ('2772f644',))],
+    '2772f644': [
+        (log,                           ('3.1B: SigridSkin BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   (('1b4edd7b','cfc4ac8a'), 'SigridSkin.BodyA.LightMap.1024')),
     ],
-    '1b4edd7b': [
-        (log,                           ('3.1: SigridSkin BodyA LightMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('5e907c41', 'SigridSkin.BodyA.LightMap.2048')),
+    '1b4edd7b': [(log, ('3.1 -> 3.1B: SigridSkin BodyA LightMap 1024p Hash',)), (update_hash, ('cfc4ac8a',))],
+    'cfc4ac8a': [
+        (log,                           ('3.1B: SigridSkin BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   (('5e907c41','2772f644'), 'SigridSkin.BodyA.LightMap.2048')),
     ],
     'e104d477': [
         (log,                           ('3.1: SigridSkin BodyA MaterialMap 2048p Hash',)),
