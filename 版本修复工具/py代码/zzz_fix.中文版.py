@@ -20,7 +20,7 @@ import urllib.parse
 import webbrowser
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.2A'
+APP_VERSION = 'v3.2B'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
@@ -44,7 +44,12 @@ from tkinter import ttk, filedialog, messagebox
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
 ==============================
-版本 3.2
+版本 3.2B
+--------
+1.新增：索引与顶点修复工具，具体修复什么看使用说明
+2.更新：部分角色（主要为脸部）的 Hash 值支持对应的修复。
+
+版本 3.2A
 --------
 1.重构：为程序添加GUI界面和自动更新功能，新增了默认修复路径和手动修复路径选择功能，优化了拖放修复逻辑。
 2.更新：蕾米埃尔、蕾米埃尔黑白皮肤 Hash 值支持对应的修复。
@@ -1775,6 +1780,9 @@ class zzz_13_remap_texcoord():
     id: str
     old_format: tuple[str] # = ('4B','2e','2f','2e')
     new_format: tuple[str] # = ('4B','2f','2f','2f')
+    # 可选：这个网格 blend 节的 hash（dump 的 CategoryHash.Blend）。
+    # 填了就能按 hash 找到 blend 缓冲、反推顶点数，不依赖文件名成对。
+    blend_hash: str = None
 
     def execute(self, default_args: DefaultArgs):
         ini  = default_args.ini
@@ -1855,6 +1863,81 @@ class zzz_13_remap_texcoord():
                 buffer = buffer_filepath.read_bytes()
             else:
                 buffer = ini.modified_buffers[buffer_dict_key]
+
+            # --- 安全检查：确认这个 buf 真的还是旧格式 ---
+            # 判断顺序，越靠前越不依赖外部条件：
+            #   1) 按大小直接判：只有一边能整除就定了 —— 不看名字、不看 hash
+            #   2) 都整除(有歧义) -> 找同网格的 Blend 缓冲(固定 32 字节/顶点)反推顶点数
+            #      2a) 先按 blend_hash 找（准，不依赖命名）
+            #      2b) 没填 blend_hash 再按文件名推
+            #   3) 都判不出来 -> 只提示，按 ini 声明的 stride 处理
+            len_ok_old = (len(buffer) % old_stride == 0)
+            len_ok_new = (len(buffer) % new_stride == 0)
+            verdict = None
+            how = ''
+
+            if len_ok_old and not len_ok_new:
+                verdict, how = 'old', '按大小'
+            elif len_ok_new and not len_ok_old:
+                verdict, how = 'new', '按大小'
+
+            if verdict is None:
+                blend_path = None
+                blend_source = None
+
+                # 2a) 按 blend 节的 hash 找（推荐，不依赖命名）
+                if self.blend_hash:
+                    try:
+                        blend_section = get_section_hash_pattern(self.blend_hash).search(ini.content)
+                        if blend_section:
+                            for blend_resource in process_commandlist(ini.content, blend_section.group(1), 'vb2'):
+                                res_match = get_section_title_pattern(blend_resource).search(ini.content)
+                                if not res_match: continue
+                                fn_match = re.search(r'^\s*filename\s*=\s*(.*)\s*$',
+                                                     res_match.group(1), flags=re.IGNORECASE | re.MULTILINE)
+                                if fn_match:
+                                    blend_path = Path(Path(ini.filepath).parent / fn_match.group(1).strip())
+                                    blend_source = 'blend 节 hash={}'.format(self.blend_hash)
+                                    break
+                    except Exception:
+                        blend_path = None
+
+                # 2b) 按文件名推
+                if blend_path is None or not blend_path.exists():
+                    for cand in (
+                        Path(str(buffer_filepath).replace('Texcoord', 'Blend')),
+                        Path(str(buffer_filepath).replace('texcoord', 'Blend')),
+                        Path(str(buffer_filepath).replace('TEXCOORD', 'Blend')),
+                    ):
+                        if cand.exists():
+                            blend_path = cand
+                            blend_source = '同名的 Blend 文件'
+                            break
+
+                vcount_guess = None
+                if blend_path is not None:
+                    try:
+                        if blend_path.exists() and blend_path.stat().st_size % 32 == 0:
+                            vcount_guess = blend_path.stat().st_size // 32
+                    except OSError:
+                        vcount_guess = None
+
+                if vcount_guess:
+                    per_vertex = len(buffer) / vcount_guess
+                    if per_vertex == old_stride:
+                        verdict, how = 'old', '反推顶点数 {}，{}'.format(vcount_guess, blend_source)
+                    elif per_vertex == new_stride:
+                        verdict, how = 'new', '反推顶点数 {}，{}'.format(vcount_guess, blend_source)
+
+            if verdict == 'new':
+                print('{}X 跳过 [{}]: {} 判定已经是新格式，不动它'.format('\t'*tabs, buffer_filename, how))
+                continue
+            if verdict is None:
+                print('{}? 注意 [{}]: 判断不出格式，按 ini 声明的 stride={} 处理'.format(
+                    '\t'*tabs, buffer_filename, stride))
+            else:
+                print('{}√ [{}]: {} 确认是旧格式'.format('\t'*tabs, buffer_filename, how))
+                stride = old_stride      # 已确认是旧格式，下标按实际格式走，不认 ini 里那个数字
 
             vcount = len(buffer) // stride
             new_buffer = bytearray()
@@ -2160,8 +2243,7 @@ hash_commands = {
     '4816de84': [(log, ('1.0: Anby Body IB Hash',)), (add_ib_check_if_missing,)],
     '19df8e84': [(log, ('1.0: Anby Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'ba016a6e': [(log, ('1.7 -> 2.0: Anby Face Texcoord Hash',)),    (update_hash, ('f818271a',)),],
+    'ba016a6e': [(log, ('1.7 -> 2.0: Anby Face Texcoord Hash',)),    (update_hash, ('f818271a',)),],
 
     #Remap
     # reverted in 1.2
@@ -3027,8 +3109,7 @@ hash_commands = {
     'a318b3c6': [(log, ('3.0: BelleSchoolUniform Player IB Hash',)), (add_ib_check_if_missing,)],
     'b946c37f': [(log, ('3.0: BelleSchoolUniform Tie IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
-    #'d3000b22': [(log, ('3.1: BelleSchoolUniform Face-脸部 texcoord_vb Hash',)), (update_hash, ('228f5a8b',))],
+    'd3000b22': [(log, ('3.0 -> 3.1: BelleSchoolUniform Face-脸部 texcoord_vb Hash',)), (update_hash, ('228f5a8b',))],
     #Texture纹理
     # Body身体
 
@@ -4064,9 +4145,9 @@ hash_commands = {
     'af39a873': [(log, ('2.4: Dialyn Body IB Hash',)), (add_ib_check_if_missing,)],
     'facb2461': [(log, ('2.4: Dialyn Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
+    #眉毛不修，故意保留注释
     #'d90368ed': [(log, ('3.1 -> 3.2: Dialyn Eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('27fd9193',))],
-    #'f6c5296e': [(log, ('3.1 -> 3.2: Dialyn Face-脸部 texcoord_vb Hash',)), (update_hash, ('dafc9647',))],
+    'f6c5296e': [(log, ('3.1 -> 3.2: Dialyn Face-脸部 draw_vb Hash',)), (update_hash, ('dafc9647',))],
     #Remap
     '6ff0e4ad': [
         (log,                         ('2.4 -> 2.5: Dialyn Body Blend Remap',)),
@@ -4154,8 +4235,7 @@ hash_commands = {
     '7f89a2b3': [(log, ('1.0 -> 1.1: Ellen Hair IB Hash',)),       (update_hash, ('d44a8015',))],
     'a72cfb34': [(log, ('1.0 -> 1.1: Ellen Body IB Hash',)),       (update_hash, ('e30fae03',))],
 
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'83dfd744': [(log, ('1.0 -> 1.1: Ellen Face Texcoord Hash',)), (update_hash, ('8744badf',))],
+    '83dfd744': [(log, ('1.0 -> 1.1: Ellen Face Texcoord Hash',)), (update_hash, ('8744badf',))],
 
 
     'd59a5fec': [(log, ('1.0 -> 1.1: Ellen Hair Draw Hash',)),     (update_hash, ('77ac5f85',))],
@@ -4874,9 +4954,8 @@ hash_commands = {
     '9727a184': [(log, ('1.3 -> 1.4: Jane Body Blend Hash',)),    (update_hash, ('e27f398e',)),],
     '8b85c03e': [(log, ('1.3 -> 1.4: Jane Body Texcoord Hash',)), (update_hash, ('949549de',)),],
     'e2c0144e': [(log, ('1.3 -> 1.4: Jane Body IB Hash',)),       (update_hash, ('ba4255a5',)),],
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'9f2f7c53': [(log, ('2.4 -> 2.5: Jane Face Texcoord Hash',)), (update_hash, ('1fa404c1',)),],
-    #'1fa404c1': [(log, ('2.5 -> 3.1: Jane Face-脸 texcoord_vb Hash',)), (update_hash, ('3c32a411',))],
+    '9f2f7c53': [(log, ('2.4 -> 2.5: Jane Face Texcoord Hash',)), (update_hash, ('1fa404c1',)),],
+    '1fa404c1': [(log, ('2.5 -> 3.1: Jane Face-脸 texcoord_vb Hash',)), (update_hash, ('3c32a411',))],
     #Remap
     'c8ad344e': [
         (log, ('1.1 -> 1.2: Jane Hair Texcoord Hash',)),
@@ -5074,9 +5153,8 @@ hash_commands = {
     '3afb3865': [(log, ('1.0: Koleda Body IB Hash',)), (add_ib_check_if_missing,)],
     '0e74656e': [(log, ('1.0: Koleda Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB  
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'a5539a26': [(log, ('1.2 -> 1.3: Koleda Face Texcoord Hash',)), (update_hash, ('f41b27e6',))],
-    #'f41b27e6': [(log, ('3.1 -> 3.2: Koleda Face-脸 texcoord_vb Hash',)), (update_hash, ('57994826',))],
+    'a5539a26': [(log, ('1.2 -> 1.3: Koleda Face Texcoord Hash',)), (update_hash, ('f41b27e6',))],
+    'f41b27e6': [(log, ('3.1 -> 3.2: Koleda Face-脸 texcoord_vb Hash',)), (update_hash, ('57994826',))],
     #Remap
     '1a9b182a': [
         (log,            ('1.2 -> 1.3: Koleda Hair Texcoord Hash',)),
@@ -5181,9 +5259,8 @@ hash_commands = {
     #VB
 
     '039f30cf': [(log, ('1.3 -> 1.4: Lighter Face IB Hash',)), (update_hash, ('dcc7bb78',))],
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'7bbe9c75': [(log, ('1.6 -> 2.0: Lighter Face Position Hash',)),  (update_hash, ('90653c42',))],
-    #'af14829b': [(log, ('1.3 -> 3.1: Lighter Face-脸 texcoord_vb Hash',)), (update_hash, ('04cc2dfd',))],
+    '7bbe9c75': [(log, ('1.6 -> 2.0: Lighter Face Position Hash',)),  (update_hash, ('90653c42',))],
+    'af14829b': [(log, ('1.3 -> 3.1: Lighter Face-脸 texcoord_vb Hash',)), (update_hash, ('04cc2dfd',))],
 
     '0baec6b7': [(log, ('1.3 -> 1.4: Lighter Body Position Hash',)), (update_hash, ('5e461440',))],
     '5e461440': [(log, ('1.4 -> 1.6: Lighter Body Position Hash',)),  (update_hash, ('f6bbabb5',))],
@@ -5407,10 +5484,9 @@ hash_commands = {
 
     'fca15ccb': [(log, ('1.2 -> 1.3: Lucy Face IB Hash',)),       (update_hash, ('df3e3965',))],
 
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'6275f052': [(log, ('1.2 -> 1.3: Lucy Face Texcoord Hash',)), (update_hash, ('1ca0ae1a',))],
-    #'1ca0ae1a': [(log, ('1.3 -> 3.1: Lucy Face-脸 texcoord_vb Hash',)), (update_hash, ('e78a4ee2',))],
-    #'80efa5cb': [(log, ('1.2 -> 1.3: Lucy Face Blend Hash',)),    (update_hash, ('a2054778',))],
+    '6275f052': [(log, ('1.2 -> 1.3: Lucy Face Texcoord Hash',)), (update_hash, ('1ca0ae1a',))],
+    '1ca0ae1a': [(log, ('1.3 -> 3.1: Lucy Face-脸 texcoord_vb Hash',)), (update_hash, ('e78a4ee2',))],
+    '80efa5cb': [(log, ('1.2 -> 1.3: Lucy Face Blend Hash',)),    (update_hash, ('a2054778',))],
 
     #Texture纹理
     # Face脸部
@@ -5563,12 +5639,11 @@ hash_commands = {
     '2a340ed5': [(log, ('1.3 -> 1.4: Lycaon Body Draw Hash',)),     (update_hash, ('25418598',))],
     '949e688a': [(log, ('1.3 -> 1.4: Lycaon Body Texcoord Hash',)), (update_hash, ('b950fda5',))],
 
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'7074f97e': [(log, ('1.5 -> 1.6: Lycaon Face Draw Hash',)),     (update_hash, ('44277f65',))],
-    #'4a666a39': [(log, ('1.5 -> 1.6: Lycaon Face Position Hash',)), (update_hash, ('7e35ec22',))],
-    #'c862a611': [(log, ('1.5 -> 1.6: Lycaon Face Blend Hash',)),    (update_hash, ('e2d4c532',))],
-    #'6902f441': [(log, ('1.? -> 1.?: Lycaon Face Texcoord Hash',)), (update_hash, ('b1edaf35',))],
-    #'b1edaf35': [(log, ('1.? -> 1.6: Lycaon Face Texcoord Hash',)), (update_hash, ('3adaebb3',))],
+    '7074f97e': [(log, ('1.5 -> 1.6: Lycaon Face Draw Hash',)),     (update_hash, ('44277f65',))],
+    '4a666a39': [(log, ('1.5 -> 1.6: Lycaon Face Position Hash',)), (update_hash, ('7e35ec22',))],
+    'c862a611': [(log, ('1.5 -> 1.6: Lycaon Face Blend Hash',)),    (update_hash, ('e2d4c532',))],
+    '6902f441': [(log, ('1.? -> 1.?: Lycaon Face Texcoord Hash',)), (update_hash, ('b1edaf35',))],
+    'b1edaf35': [(log, ('1.? -> 1.6: Lycaon Face Texcoord Hash',)), (update_hash, ('3adaebb3',))],
     '7341e07b': [(log, ('1.5 -> 1.6: Lycaon Face IB Hash',)),       (update_hash, ('6ffdfccb',))],
 
     #Remap
@@ -6811,9 +6886,8 @@ hash_commands = {
     '3a00aa76': [(log, ('2.8 -> 2.81: Promeia Eyebrow Texcoord Hash',)),(update_hash, ('d3d65ca5',)),],
 
     '5ea47a32': [(log, ('2.8 -> 2.81: Promeia Face IB Hash',)),      (update_hash, ('ef3c4506',)),],
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'b7a6479f': [(log, ('2.8 -> 2.81: Promeia Face Texcoord Hash',)),(update_hash, ('dcd61276',)),],
-    #'5ff41c34': [(log, ('2.8 -> 2.81: Promeia Face Blend Hash',)),   (update_hash, ('bf5b785d',)),],
+    'b7a6479f': [(log, ('2.8 -> 2.81: Promeia Face Texcoord Hash',)),(update_hash, ('dcd61276',)),],
+    '5ff41c34': [(log, ('2.8 -> 2.81: Promeia Face Blend Hash',)),   (update_hash, ('bf5b785d',)),],
 
     '947ceb88': [(log, ('2.8 -> 2.81: Promeia Weapon IB Hash',)),      (update_hash, ('8995db58',)),],
     '7d76d686': [(log, ('2.8 -> 2.81: Promeia Weapon Draw Hash',)),    (update_hash, ('0a06059e',)),],
@@ -7682,8 +7756,7 @@ hash_commands = {
     '00172ec3': [(log, ('1.1: Seth Body IB Hash',)), (add_ib_check_if_missing,)],
     '52f5aa74': [(log, ('1.1: Seth Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
-   #'bff3e0b3': [(log, ('1.1 -> 3.1: Seth Face texcoord_vb Hash',)), (update_hash, ('b3f6842f',))],
+   'bff3e0b3': [(log, ('1.1 -> 3.1: Seth Face texcoord_vb Hash',)), (update_hash, ('b3f6842f',))],
     #Remap
     # Reversed in v1.4
     # 'a91eeef2': [
@@ -8083,8 +8156,7 @@ hash_commands = {
     #VB
 
     '01f7369e': [(log, ('1.0 - 1.1: Soukaku Face IB Hash',)), (update_hash, ('020f9ac6',))],
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'ad41e2f6': [(log, ('1.0 - 1.1: Soukaku Face Texcoord Hash',)), (update_hash, ('c2db08f0',))],
+    'ad41e2f6': [(log, ('1.0 - 1.1: Soukaku Face Texcoord Hash',)), (update_hash, ('c2db08f0',))],
 
     #Texture纹理
     # Face脸部
@@ -8323,9 +8395,8 @@ hash_commands = {
     '7f32eeae': [(log, ('1.6: Trigger Body IB Hash',)), (add_ib_check_if_missing,)],
     '40cd4182': [(log, ('1.6: Trigger Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'dfc69ad0': [(log, ('1.7 -> 2.0: Trigger Face Position',)), (update_hash, ('ba455625',))],
-    #'b9f0d595': [(log, ('2.2 -> 2.3: Trigger Face Texcoord',)), (update_hash, ('d4a12ab7',))],
+    'dfc69ad0': [(log, ('1.7 -> 2.0: Trigger Face Position',)), (update_hash, ('ba455625',))],
+    'b9f0d595': [(log, ('2.2 -> 2.3: Trigger Face Texcoord',)), (update_hash, ('d4a12ab7',))],
 
     #Texture纹理
     # Face脸部
@@ -8420,11 +8491,10 @@ hash_commands = {
             'src_indices': ['0', '7182', '9888'],
             'trg_indices': ['0', '7398', '9888'],
         })],
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'98ecf569': [(log, ('3.1: Velina Face-脸部 blend_vb Hash',)), (update_hash, ('76fe8eed',))],
-    #'19ead1b7': [(log, ('3.1: Velina Face-脸部 draw_vb Hash',)), (update_hash, ('bfa3b361',))],
-    #'23f842f0': [(log, ('3.1: Velina Face-脸部 position_vb Hash',)), (update_hash, ('85b12026',))],
-    #'641bedfb': [(log, ('3.1: Velina Face-脸部 texcoord_vb Hash',)), (update_hash, ('69304ff6',))],
+    '98ecf569': [(log, ('3.0 -> 3.1: Velina Face-脸部 blend_vb Hash',)), (update_hash, ('76fe8eed',))],
+    '19ead1b7': [(log, ('3.0 -> 3.1: Velina Face-脸部 draw_vb Hash',)), (update_hash, ('bfa3b361',))],
+    '23f842f0': [(log, ('3.0 -> 3.1: Velina Face-脸部 position_vb Hash',)), (update_hash, ('85b12026',))],
+    '641bedfb': [(log, ('3.0 -> 3.1: Velina Face-脸部 texcoord_vb Hash',)), (update_hash, ('69304ff6',))],
     #Texture纹理
     # Face脸部
     '93ce2562': [
@@ -8630,8 +8700,7 @@ hash_commands = {
     'cd609d98': [(log, ('1.7: Vivian Body IB Hash',)), (add_ib_check_if_missing,)],
     '39944f20': [(log, ('1.7: Vivian Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'0afe5a44': [(log, ('3.1 -> 3.2: Vivian Face-脸 texcoord_vb Hash',)), (update_hash, ('50c5d703',))],
+    '0afe5a44': [(log, ('3.1 -> 3.2: Vivian Face-脸 texcoord_vb Hash',)), (update_hash, ('50c5d703',))],
 
     #Texture纹理
     # Face脸部
@@ -8787,9 +8856,8 @@ hash_commands = {
     '83e07a1b': [(log, ('2.0 -> 2.1: Wise HairShadow IB Hash',)),  (update_hash, ('8d08b190',))],
 
     '4894246e': [(log, ('1.5 -> 1.6: Wise Face IB Hash',)),       (update_hash, ('1fdaf388',))],
-    #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #'b300256d': [(log, ('1.7 -> 2.0: Wise Face Texcoord Hash',)), (update_hash, ('ebe9f31b',))],
-    #'ebe9f31b': [(log, ('2.0 -> 2.1: Wise Face Texcoord Hash',)), (update_hash, ('c83b6cbf',))],
+    'b300256d': [(log, ('1.7 -> 2.0: Wise Face Texcoord Hash',)), (update_hash, ('ebe9f31b',))],
+    'ebe9f31b': [(log, ('2.0 -> 2.1: Wise Face Texcoord Hash',)), (update_hash, ('c83b6cbf',))],
 
     '054ea752': [(log, ('1.0 -> 1.1: Wise Body IB Hash',)),       (update_hash, ('8d6acf4e',))],
     '73c48816': [(log, ('1.0 -> 1.1: Wise Body Draw Hash',)),     (update_hash, ('b581dc0a',))],
@@ -8990,8 +9058,7 @@ hash_commands = {
     '0ec31440': [(log, ('3.0: Wiseswimwear Face IB Hash',)), (add_ib_check_if_missing,)],
     '19a3f02e': [(log, ('3.0: Wiseswimwear Body IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
-    #'c83b6cbf': [(log, ('3.1: WiseSwimwear Face-脸 texcoord_vb Hash',)), (update_hash, ('2b320847',))],
+    'c83b6cbf': [(log, ('3.0 -> 3.1: WiseSwimwear Face-脸 texcoord_vb Hash',)), (update_hash, ('2b320847',))],
     '9741e2f0': [(log, ('2.1 -> 2.2: Wiseswimwear Body Blend Hash',)), (update_hash, ('d4147320',))],
     #Texture纹理
     # Body身体
@@ -10956,6 +11023,2088 @@ def register_drop_targets(root, handler):
     return n > 0
 
 
+# ================= 内嵌「索引与顶点修复」使用说明（程序目录有同名 txt 时优先读文件）
+IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
+================================================
+
+这是什么
+    修两类问题，一次一个 mod：
+
+    一、骨骼索引（VGX）   blend.buf 里的骨骼索引被写错了
+        症状：模型变形 —— 腿弯、塌陷、扭曲，但贴图正常
+        已知需要修复的角色：
+        1.琉音腿变形
+        2.艾莲腿变形
+        做法：按角色表，或按 dump 参照推出来的映射，把索引逐个换对
+
+    二、顶点格式（texcoord）  游戏更新改了顶点格式，老 mod 的 buf 布局对不上
+        症状：贴图整体错乱，但模型形状完全正常
+        已知需要修复的角色：
+        1.脸部破碎：珂蕾妲、露西、薇薇安、琉音、青衣（需要手动更新hash）
+        做法：按目标表重排每个顶点的字节，并同步改 ini 里的 stride
+
+    两类互相独立，哪个命中修哪个；都没命中就什么都不做。
+
+怎么用
+------------------------------------------------
+    1. 先在“角色参照”里选这次修哪个角色（dump\\ 里有哪些角色就列哪些）。
+       只拿一个角色的 dump 当参照，不做跨角色匹配，所以这一步要选对。
+
+    2. 在“修复目标路径”里填【那个角色 mod 的文件夹】。
+       一次只填一个 —— 工具是递归扫整个文件夹找 ini / buf 的，
+       别把整个 Mods 目录拖进来，否则会扫到别的角色。
+       也可以直接把文件夹拖进窗口（拖进来是 dump 文件夹就当参照读）。
+
+    3. 点“▶ 开始修复”：先把命中的问题列出来，弹窗确认后才写文件。
+       每个文件改前都会自动备份，改错了点“↩ 还原”按备份退回去。
+
+    前提：mod 的 ini 里 hash 必须已经是当前版本 —— 先跑【版本Hash修复】。
+
+角色参照管到哪 (选错角色 = 整包不修)
+------------------------------------------------
+    开修之前先拿 mod 的 ini 里的 hash 跟本次参照对一次：
+
+        把这个角色 dump 里出现过的 hash 全收成一个集合
+        （每个网格各算 Texcoord / Blend / Position 三个），
+        mod 的 ini 里【命中任意一个】就够了 —— 每个角色的 hash
+        都不一样，命中一个就说明这个 mod 和参照是同一个角色。
+
+    命中   ->  认定同角色，这个 mod 该怎么修怎么修
+    没命中 ->  整包不处理，日志写清楚，一个文件都不动
+
+    日志里会写明命中的是哪个 hash，例如：
+
+        角色比对：ini 里的 hash ff36809b 命中本次参照【琉音(2)】
+
+    想修哪个角色，就把“角色参照”换成哪个角色。
+    前提还是那条：mod 的 ini 里 hash 要是当前版本（先跑版本Hash修复），
+    否则可能一个都对不上，被当成别的角色整包挡下来。
+
+    例外只有一种：程序目录 dump\\ 里一个数据都没有的时候，没有参照可核对，
+    这时只走表，不做角色限制。
+
+dump 参照
+------------------------------------------------
+    自动读的位置：
+        程序目录下的 dump\\          （没有会自动建一个，里面带一份说明）
+        索引与顶点修复工具\\dump\\   （旧位置，有数据就用）
+    也可以点“选择 dump 文件夹”或直接把 dump 文件夹拖进窗口
+    （有 .json、没有 .ini 会被认出来），选过的目录会记住，下次启动自动读。
+
+    dump 里缺哪个角色 / 哪个网格，反馈给作者补一份就行 —— 抓 dump 是作者的事。
+
+问什么答什么
+------------------------------------------------
+    表里和 dump 里都能修同一个网格  ->  问一次用哪边
+        （表 = 人手填过，可控；dump = 游戏当前状态，最新）
+    表里没有、只有 dump 能自动推    ->  问一次要不要修
+    写入前                          ->  确认一次
+
+    确认框弹出之前，工具不会改动任何文件。
+
+还原
+------------------------------------------------
+    切到本标签页，点“↩ 还原”，按备份把文件退回去（会先列出要还原哪些）。
+
+    备份长这样：
+        VGX 部分：  xxx.vgx_BACKUP.buf              原 buf
+                    xxx.vgx_REMAP_APPLIED.empty     已修标记
+        格式部分：  xxx.texfmt_BACKUP.buf           原 buf
+                    xxx.texfmt.bak                  ini 原文件
+                    xxx.texfmt_DONE.empty           已修标记
+                    （旧工具留下的 .tex48_BACKUP.buf / .tex48.bak 还原时也认）
+
+    只认本工具的备份；旧工具那种改名式备份（DISABLED_BACKUP_*）要手动改名回来。
+
+注意事项
+    - 一个 buf 不要跑两次（有备份 / 标记的会自动跳过）
+    - 版本更新后：先跑【版本Hash修复】把 ini 里的 hash 更新到最新，再跑本工具
+    - 工具会提醒“看着是旧格式、但没被处理”的 texcoord，并说明原因：
+          ① mod 的 ini 里 hash 还是旧的   -> 先跑版本Hash修复
+          ② 这个网格作者还没提供 dump    -> 反馈给作者补一份
+
+给作者（加新角色 / 新网格）
+------------------------------------------------
+    两张表在源码的内嵌模块“索引与顶点修复工具”里：
+        VGX_CHARACTERS    骨骼索引映射。
+                          hashes 填该角色 Position 节的 hash（ini 里带 vb2 = ResourcexxxBlend 的那节）；
+                          old / new 用 查找VGX映射工具 生成。
+        TEXCOORD_TARGETS  顶点格式重排。
+                          hash 用【当前版本】的 texcoord hash；
+                          old_format / new_format 用 查找Texcoord映射工具 生成；
+                          blend_hash 选填，填了反推顶点数更稳。
+
+    同一份代码在 索引与顶点修复工具\\索引与顶点修复工具.py，改一边记得同步另一边。
+    说明文字本文件即可：程序目录放一份“索引与顶点修复使用说明.txt”会覆盖上面的内嵌内容。
+
+================================================
+'''
+
+# =====================================================================
+# 内嵌模块：索引与顶点修复工具（VGX 骨骼索引 + texcoord 顶点格式）
+#   —— 原独立脚本 索引与顶点修复工具/索引与顶点修复工具.py 的完整实现。
+#      独立脚本本体保持原样，两边互不影响；改这边时记得同步那边。
+#      相比原脚本的改动：
+#        1. main / drag_drop_loop 改名 iv_main / iv_drag_drop_loop（避开本文件重名）
+#        2. SCRIPT_DIR 指向程序目录（打包后是 exe 所在目录），dump\ 也从这里找，
+#           并兼容同级 索引与顶点修复工具\dump\ 旧位置
+#        3. 去掉原脚本开 ANSI 的 os.system('')（GUI 下会闪控制台窗口）
+#        4. 提问点（表/dump 冲突、写前确认）改为可替换的 IV_ASKER：
+#           没装 = 命令行问答（行为与独立脚本一致），GUI 装对话框实现
+# =====================================================================
+from array import array
+from math import floor
+
+# -*- coding: utf-8 -*-
+import os
+import re
+from array import array
+from math import floor
+import sys
+import json
+import shlex
+import struct
+import traceback
+from pathlib import Path
+
+SCRIPT_DIR = (Path(sys.executable).resolve().parent
+              if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent)
+
+CONFIRM_WORD = 'queren'
+EXIT_WORDS = ('exit', 'quit', 'q', '退出')
+
+# ------------------------------------------------------------------ 终端样式
+
+class Style:
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    GREEN = '\033[1;32m'
+    RED = '\033[1;31m'
+    YELLOW = '\033[1;33m'
+    CYAN = '\033[1;36m'
+    GRAY = '\033[90m'
+
+
+def c(text, color):
+    return '{}{}{}'.format(color, text, Style.RESET)
+
+
+# ------------------------------------------------------------------ 提问接口
+# 修复前要问用户几件事（表与 dump 撞车用哪套、写不写、还原确认）。
+# 命令行跑就用原来那套 input() 问答；GUI 跑时装一个 IV_ASKER，
+# 同一处问话改弹对话框 —— 两边决定的东西完全一样，只是问法不同。
+
+IV_ASKER = None      # 装了就是 GUI 提问器（见 IvGuiAsker）；None = 命令行问答
+
+
+class IvConsoleAsker:
+    """命令行提问：与独立脚本的问答逐字一致"""
+
+    def source_choice(self, kind, detail, count, prefer_dump):
+        """表 / dump 撞车：返回 'table' 或 'dump'"""
+        if kind == 'vgx':
+            print('表里和 dump 里都能修{}这个网格：{}'.format(
+                '' if count == 1 else ' {} 个'.format(count), detail))
+            print('  用哪个的数据修？')
+            print('    {}1 = 用表里的（推荐，人手填过）{}'.format(Style.GREEN, Style.RESET))
+            print('    {}2 = 用 dump 自动推的{}'.format(Style.GREEN, Style.RESET))
+            return 'dump' if ask('  选 1 / 2（直接回车 = 表）: ').strip() == '2' else 'table'
+        print('表里和 dump 里都有{}这个网格：{}'.format(
+            '' if count == 1 else ' {} 个'.format(count), detail))
+        print('  这次用哪个的数据修？')
+        print('    {}1 = 用表里的{}'.format(Style.GREEN, Style.RESET))
+        print('    {}2 = 用 dump 里的{}'.format(Style.GREEN, Style.RESET))
+        answer = ask('  选 1 / 2（直接回车 = {}）: '.format('dump' if prefer_dump else '表')).strip()
+        if answer == '1':
+            return 'table'
+        if answer == '2':
+            return 'dump'
+        return 'dump' if prefer_dump else 'table'
+
+    def auto_vgx_choice(self, paths):
+        """表里没有、dump 能推：返回 True = 用 dump 推的修"""
+        print('表里没有这些网格的条目，但 dump 能自动推：')
+        for path in paths:
+            print('  - {}'.format(path))
+        print('  要不要用 dump 推出来的映射来修？')
+        print('    {}1 = 要{}'.format(Style.GREEN, Style.RESET))
+        print('    {}2 = 不要，这次不动它{}'.format(Style.GREEN, Style.RESET))
+        return ask('  选 1 / 2（直接回车 = 要）: ').strip() != '2'
+
+    def confirm(self, summary):
+        """写文件前的总确认：返回 True = 动手"""
+        print(c('不要对不需要修复的 mod 运行本工具!!!', Style.RED))
+        print(c('不要在同一个 buf 上运行两次!!!', Style.RED))
+        print('输入 {}{}{} 回车应用（改前都会备份，想反悔可以选 2 还原）'.format(
+            Style.GREEN, CONFIRM_WORD, Style.RESET))
+        return ask().lower() == CONFIRM_WORD
+
+    def confirm_restore(self, lines):
+        """还原确认：返回 True = 动手（明细行由调用方打印）"""
+        print('输入 {}{}{} 回车执行还原。'.format(Style.GREEN, CONFIRM_WORD, Style.RESET))
+        return ask().lower() == CONFIRM_WORD
+
+    def progress(self, done, total, text):
+        """命令行不画进度条，什么都不做"""
+        pass
+
+
+def iv_asker():
+    """当前提问器：GUI 装了就返回 GUI 的，否则命令行那套"""
+    return IV_ASKER if IV_ASKER is not None else _IV_CONSOLE_ASKER
+
+
+_IV_CONSOLE_ASKER = IvConsoleAsker()
+
+
+def iv_progress(done, total, text):
+    """写文件进度（GUI 里刷进度条；命令行忽略）"""
+    if IV_ASKER is not None:
+        try:
+            IV_ASKER.progress(done, total, text)
+        except Exception:
+            pass
+
+
+def active_ref_hashes():
+    """本次角色的 dump 里出现过的全部 hash：texcoord + blend + position。
+
+    表（VGX_CHARACTERS / TEXCOORD_TARGETS）里的条目也要过这一关：
+    条目上的 hash 不在里面 = 这个网格不属于本次选的角色，一律不修 ——
+    免得选了 A 角色，拖进来 B 角色的 mod，靠表跨角色给修了。
+
+    返回 None = 没有 dump 参照（DUMP_MESHES 空），此时不做限制，
+    只有表的模式照旧能用。
+    """
+    if not DUMP_MESHES:
+        return None
+    allowed = set()
+    for tex_hash, info in DUMP_MESHES.items():
+        allowed.add(str(tex_hash).lower())
+        for key in ('blend_hash', 'position_hash'):
+            value = info.get(key)
+            if value:
+                allowed.add(str(value).lower())
+    return allowed
+
+
+def ref_scope_text():
+    """给提示文字用：本次参照是谁"""
+    return describe_active_dumps()
+
+
+def mod_ref_hit(target: Path, allowed):
+    """这个 mod 是不是本次参照那个角色的：拿 ini 里的 hash 跟白名单对。
+
+    每个角色的 hash 都不一样，所以【命中任意一个就够了】——
+    命中一个 = 这个 mod 和参照 dump 是同一个角色。
+    返回 (是否命中, 命中的那个 hash)。
+    """
+    if allowed is None:
+        return True, None
+    for ini_path in find_ini_files(target):
+        try:
+            text = ini_path.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            continue
+        for match in HASH_LINE_RE.finditer(text):
+            value = str(match.group(1)).lower()
+            if value in allowed:
+                return True, value
+    return False, None
+
+
+# ==========================================================================
+#  表一：VGX 骨骼索引重映射
+#
+#  和琉音 2.5 / 艾莲 1.4A 一个思路：把一个写错的骨骼索引换成正确的。
+#  hashes 填该角色【Position 节点】的 hash（ini 里带 vb2 = ResourcexxxBlend 的那节），
+#  old / new 用 查找VGX映射工具 推出来。
+#
+#    {
+#        'name':   '琉音 Dialyn 身体',
+#        'hashes': ['ff36809b'],
+#        'old':    [...],
+#        'new':    [...],
+#    },
+# ==========================================================================
+
+VGX_CHARACTERS = [
+    {
+        'name':   '琉音 Dialyn 身体',
+        'hashes': ['ff36809b'],
+        'old':    [18, 19, 20, 54, 55, 56, 57, 58, 59, 60, 61, 62, 69, 70, 71, 72,
+                   91, 92, 93, 94, 95, 96, 97, 98, 113, 114, 128, 129, 130, 131, 132, 188, 189],
+        'new':    [20, 18, 19, 62, 54, 55, 56, 57, 58, 59, 60, 61, 71, 72, 70, 69,
+                   98, 91, 92, 93, 94, 95, 96, 97, 114, 113, 129, 128, 132, 130, 131, 189, 188],
+    },
+    {
+        'name':   '艾莲 Ellen 腿部',
+        'hashes': ['ba0fe600'],
+        'old':    [34, 35, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 49, 50],
+        'new':    [39, 34, 40, 35, 38, 42, 43, 44, 45, 46, 47, 41, 50, 49],
+    },
+]
+
+VGX_BACKUP_SUFFIX = '.vgx_BACKUP.buf'
+VGX_MARKER_SUFFIX = '.vgx_REMAP_APPLIED.empty'
+
+# ==========================================================================
+#  表二：texcoord 顶点格式重排
+#
+#  游戏更新把某些网格的顶点 COLOR 从 4 字节改成 float4，vb1 每顶点多了 12 字节。
+#  hash 用【当前版本】的值（dump 的 CategoryHash.Texcoord），
+#  old_format / new_format 用 查找Texcoord映射工具 生成。
+#
+#    {
+#        'name':       '琉音 Dialyn 脸部',
+#        'hash':       'dafc9647',
+#        'old_format': ('4B', '2f', '2f', '2f', '2f'),   # 36 字节
+#        'new_format': ('4f', '2f', '2f', '2f', '2f'),   # 48 字节
+#        'blend_hash': '08923d3e',        # 选填，见下
+#    },
+#
+#  记法：'4B'=4 字节  '2e'=2 个 half  '2f'=2 个 float  '4f'=4 个 float
+#        '4I'=4 个 uint32  '3f'=3 个 float
+#
+#  blend_hash（选填）：该网格【blend 节】的 hash —— dump 里的 CategoryHash.Blend。
+#      修之前要先确认 buf 到底是不是旧格式，判断顺序：
+#        1) 按 buf 大小：只能被旧步幅整除 = 旧格式，只能被新步幅整除 = 已修过
+#        2) 大小有歧义时，反推顶点数 —— 先按 blend_hash 找 blend 缓冲（不依赖命名），
+#           没填就按同名文件 xxxBlend.buf / xxxPosition.buf 推
+#        3) 都判不出来 -> 只提示，不动文件
+#      所以这个值只在第 2 步用得上，填了更稳，不填也能跑。
+# ==========================================================================
+
+TEXCOORD_TARGETS = [
+    {
+        'name': '琉音 Dialyn 脸部',
+        'hash': 'dafc9647',
+        'old_format': ('4B', '2f', '2f', '2f', '2f'),   # 36 字节
+        'new_format': ('4f', '2f', '2f', '2f', '2f'),   # 48 字节
+        'blend_hash': '08923d3e',                       # 脸部 blend 节
+    },
+]
+
+TEX_BACKUP_SUFFIX = '.texfmt_BACKUP.buf'
+TEX_MARKER_SUFFIX = '.texfmt_DONE.empty'
+TEX_INI_BACKUP_SUFFIX = '.texfmt.bak'
+TEX_LEGACY_BACKUP_SUFFIX = '.tex48_BACKUP.buf'    # 旧版工具留下的，还原时也认
+TEX_LEGACY_INI_BACKUP_SUFFIX = '.tex48.bak'
+
+# ==========================================================================
+#  可选：dump 文件夹
+#
+#  游戏内 F8 抓的 Frame Analysis dump 里有这个网格当前的所有信息：
+#      CategoryHash.Texcoord   -> 该填什么 hash
+#      CategoryHash.Blend      -> 反推顶点数用
+#      元素表                   -> 当前是什么格式
+#  所以 dump 不用手填表，放进来就行。
+#
+#  全部放进本程序目录下的 dump 文件夹，启动时自动读，拖 mod 进来就直接修：
+#
+#      索引与顶点修复工具\
+#          dump\
+#              琉音.json                  <- 游戏内 F8 抓的，改成角色名就行
+#              艾莲-脸部.json
+#
+#   角色多的话也可以一个角色一个子文件夹：
+#
+#          dump\
+#              琉音\
+#                  a1b2c3d4-12345-0.json
+#              艾莲\
+#                  ...
+#
+#  角色名（文件名或目录名）只用来在输出里显示，叫什么都可以；
+#  json 内容不依赖文件名，所以随便改。
+#
+#  也可以填别的绝对路径，或运行时把 dump 文件夹直接拖进窗口：
+#      DUMP_DIRS = [r'D:\dump', r'E:\另一个dump']
+#
+#  只填 TEXCOORD_TARGETS 里没有的网格才会用 dump 里的；重名以表为准。
+# ==========================================================================
+
+DUMP_DIR_NAME = 'dump'      # 本程序目录下的 dump 文件夹，自动读
+DUMP_DIRS = []              # 另外的 dump 路径（选填）
+
+# 同一个网格，表里和 dump 里都有时，默认用哪个：
+#     False = 用表里的（表是人手填的，可控）
+#     True  = 用 dump 里的（dump 是游戏当前状态，最新）
+# 运行时如果两边都有，工具会问一次用哪个，那次回答优先。
+PREFER_DUMP = False
+
+# DXGI 格式 -> 顶点格式记法
+DXGI_CHUNK = {
+    'R32G32B32A32_FLOAT': '4f', 'R32G32B32_FLOAT': '3f',
+    'R32G32_FLOAT': '2f', 'R32_FLOAT': '1f',
+    'R16G16B16A16_FLOAT': '4e', 'R16G16_FLOAT': '2e',
+    'R32G32B32A32_UINT': '4I', 'R32G32_UINT': '2I', 'R16G16B16A16_UINT': '4H',
+    'R8G8B8A8_UNORM': '4B', 'R8G8B8A8_UNORM_SRGB': '4B', 'R8G8B8A8_SNORM': '4B',
+    'R10G10B10A2_UNORM': '4B', 'B8G8R8A8_UNORM': '4B',
+}
+
+DUMP_MESHES = {}     # 这次实际生效的（可能只是某个角色的）
+ALL_DUMPS = {}       # dump\ 里读到的全部
+
+
+# ==========================================================================
+#  通用：ini 收集 / 节切分
+# ==========================================================================
+
+SECTION_RE = re.compile(r'(?m)^[ \t]*\[([^\]]+)\][ \t]*$')
+
+
+def split_sections(text):
+    """返回 [(节标题, 节起始, 节结束)]"""
+    marks = [(m.start(), m.group(1)) for m in SECTION_RE.finditer(text)]
+    result = []
+    for i, (start, title) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        result.append((title, start, end))
+    return result
+
+
+def find_ini_files(folder: Path):
+    """递归收集 ini（跳过 DISABLED / DESKTOP 开头的）"""
+    hits = []
+    for root, _dirs, files in os.walk(folder):
+        for name in files:
+            if not name.endswith('.ini'):
+                continue
+            if name.upper().startswith('DISABLED') or name.upper().startswith('DESKTOP'):
+                continue
+            hits.append(Path(root) / name)
+    return sorted(hits)
+
+
+def find_backup_like(buf_path: Path):
+    """同名文件里有没有备份 / 已修复标记（本工具的、旧工具的都认）"""
+    stem = buf_path.name[:-4]
+    try:
+        names = os.listdir(buf_path.parent)
+    except OSError:
+        return None
+    for name in names:
+        if name == buf_path.name or not name.startswith(stem):
+            continue
+        upper = name.upper()
+        if 'BACKUP' in upper or 'REMAP_APPLIED' in upper or '_DONE' in upper:
+            return name
+    return None
+
+
+# ==========================================================================
+#  一、VGX 骨骼索引
+# ==========================================================================
+
+def vgx_hash_pattern(hash) -> re.Pattern:
+    return re.compile(r'^([ \t]*?\[(?:Texture|Shader)Override.*\][ \t]*(?:\n(?![ \t]*?\[).*?$)*?(?:\n\s*hash\s*=\s*{}[ \t]*)(?:(?:\n(?![ \t]*?\[).*?$)*(?:\n[\t ]*?[\$\w].*?$))?)\s*'.format(hash), flags=re.VERBOSE | re.IGNORECASE | re.MULTILINE)
+
+
+def vgx_section_pattern(title) -> re.Pattern:
+    return re.compile(r'^([ \t]*?\[{}\](?:(?:\n(?![ \t]*?\[).*?$)*(?:\n[\t ]*?[\$\w].*?$))?)\s*'.format(title), flags=re.VERBOSE | re.IGNORECASE | re.MULTILINE)
+
+
+def vgx_blend_resources(ini_content: str, section_text: str) -> list:
+    """从节内容里收集 vb2 = xxx，遇到 run = CommandList 追进去"""
+    line_pattern = re.compile(r'^\s*(run|vb2)\s*=\s*(.*)\s*$', flags=re.IGNORECASE)
+    resources = []
+
+    for line in section_text.splitlines():
+        line_match = line_pattern.match(line)
+        if not line_match:
+            continue
+
+        if line_match.group(1) == 'vb2':
+            resources.append(line_match.group(2))
+        elif line_match.group(1) == 'run':
+            commandlist_match = vgx_section_pattern(line_match.group(2)).search(ini_content)
+            if commandlist_match:
+                resources.extend(vgx_blend_resources(ini_content, commandlist_match.group(1)))
+
+    return resources
+
+
+def vgx_blend_filepaths(ini_filepath: Path, ini_content: str, position_hash: str) -> list:
+    position_match = vgx_hash_pattern(position_hash).search(ini_content)
+    if not position_match:
+        return []
+
+    line_pattern = re.compile(r'^\s*filename\s*=\s*(.*)\s*$', flags=re.IGNORECASE)
+    paths = []
+    for resource in vgx_blend_resources(ini_content, position_match.group(1)):
+        resource_match = vgx_section_pattern(resource).search(ini_content)
+        if not resource_match:
+            continue
+        for line in resource_match.group(1).splitlines():
+            if line_match := line_pattern.match(line):
+                paths.append(ini_filepath.parent / line_match.group(1).strip())
+                break
+    return paths
+
+
+def vgx_remap(buffer: bytes, table: dict) -> bytes:
+    """按映射表重写 blend.buf 的骨骼索引，权重不动"""
+    out = bytearray()
+    stride = 32
+    for i in range(len(buffer) // stride):
+        weights = struct.unpack_from('<4f', buffer, i * stride + 0)
+        indices = struct.unpack_from('<4I', buffer, i * stride + 16)
+        out.extend(struct.pack('<4f4I', *weights, *[table.get(v, v) for v in indices]))
+    return bytes(out)
+
+
+def vgx_backup_of(buf: Path) -> Path:
+    return buf.with_name(buf.stem + VGX_BACKUP_SUFFIX)
+
+
+def vgx_marker_of(buf: Path) -> Path:
+    return buf.with_name(buf.stem + VGX_MARKER_SUFFIX)
+
+
+def validate_vgx() -> bool:
+    ok = True
+    seen = {}
+    for character in VGX_CHARACTERS:
+        name = character.get('name', '(没写 name)')
+        old = character.get('old', [])
+        new = character.get('new', [])
+        hashes = character.get('hashes', [])
+
+        if not hashes:
+            print(c('[配置错误] {}: 没有填 hashes'.format(name), Style.RED))
+            ok = False
+        for position_hash in hashes:
+            if not re.fullmatch(r'[0-9a-fA-F]{8}', str(position_hash)):
+                print(c('[配置错误] {}: hash "{}" 不是 8 位十六进制'.format(name, position_hash), Style.RED))
+                ok = False
+            key = str(position_hash).lower()
+            if key in seen:
+                print(c('[配置警告] hash {} 被 "{}" 和 "{}" 同时使用'.format(key, seen[key], name), Style.YELLOW))
+            seen[key] = name
+
+        if len(old) != len(new):
+            print(c('[配置错误] {}: old 有 {} 个，new 有 {} 个，必须一样长'.format(name, len(old), len(new)), Style.RED))
+            ok = False
+            continue
+        if not old:
+            print(c('[配置错误] {}: old/new 是空的'.format(name), Style.RED))
+            ok = False
+            continue
+        duplicates = sorted({x for x in old if old.count(x) > 1})
+        if duplicates:
+            print(c('[配置错误] {}: old 里有重复值 {}'.format(name, duplicates), Style.RED))
+            ok = False
+    return ok
+
+
+# ---- dump 驱动：按位置配对推映射（验证工具里那套，参数一样）-----------------
+
+VGX_RADIUS = 0.010        # 位置配对半径（游戏单位）
+VGX_MAX_K = 6             # 每个 dump 顶点最多取几个 mod 顶点
+VGX_W_EPS = 0.050         # 权重被认为"一样"的容差
+VGX_W_MIN = 0.010         # 小于这个权重的槽位不参与投票
+VGX_LOW_VOTES = 20        # 少于这么多票的条目会被标出来
+
+
+def load_blend_verts(path: Path):
+    """blend.buf -> [(权重4, 索引4)]"""
+    try:
+        data = path.read_bytes()
+    except Exception:
+        return None
+    return [(struct.unpack_from('<4f', data, i * 32),
+             struct.unpack_from('<4I', data, i * 32 + 16))
+            for i in range(len(data) // 32)]
+
+
+def load_positions(path: Path):
+    """Position.buf -> [(x, y, z)]（只取每顶点开头 12 字节）"""
+    try:
+        data = path.read_bytes()
+    except Exception:
+        return None
+    count = len(data) // 40
+    flat = array('f')
+    flat.frombytes(data[:count * 40])
+    return list(zip(flat[0::10], flat[1::10], flat[2::10]))
+
+
+# 邻格偏移：单元边长 == 半径，所以查 ±1 个格子就够
+VGX_CELL_OFFSETS = tuple((dx, dy, dz)
+                         for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1))
+
+
+def derive_bone_map(mod_blend, mod_pos, dump_blend, dump_pos):
+    """逐顶点按位置配对投票 -> {旧索引: {新索引: 票数}}, 统计
+
+    格子用 floor 取整 —— 不能用 int()，那在负数上是截断，跨 0 那个格子会被撑成
+    两倍宽，边界外一个半径内的顶点就会漏掉。
+    """
+    inv = 1.0 / VGX_RADIUS
+    limit = VGX_RADIUS * VGX_RADIUS
+    w_min = VGX_W_MIN
+    w_eps = VGX_W_EPS
+    max_k = VGX_MAX_K
+    offsets = VGX_CELL_OFFSETS
+
+    xs = [p[0] for p in mod_pos]
+    ys = [p[1] for p in mod_pos]
+    zs = [p[2] for p in mod_pos]
+
+    grid = {}
+    for i in range(len(xs)):
+        key = (floor(xs[i] * inv), floor(ys[i] * inv), floor(zs[i] * inv))
+        cell = grid.get(key)
+        if cell is None:
+            grid[key] = [i]
+        else:
+            cell.append(i)
+    get_cell = grid.get
+
+    votes = {}
+    matched = 0
+    distances = []
+
+    for d, (px, py, pz) in enumerate(dump_pos):
+        bx = floor(px * inv)
+        by = floor(py * inv)
+        bz = floor(pz * inv)
+        found = []
+        for dx, dy, dz in offsets:
+            cell = get_cell((bx + dx, by + dy, bz + dz))
+            if not cell:
+                continue
+            for i in cell:
+                ax = xs[i] - px
+                ay = ys[i] - py
+                az = zs[i] - pz
+                d2 = ax * ax + ay * ay + az * az
+                if d2 <= limit:
+                    found.append((d2, i))
+        if not found:
+            continue
+        found.sort()
+        if len(found) > max_k:
+            found = found[:max_k]
+        matched += 1
+        distances.append(found[0][0] ** 0.5)
+
+        dump_w, dump_i = dump_blend[d]
+        order_d = sorted(range(4), key=lambda k: -dump_w[k])
+        for _d2, i in found:
+            mod_w, mod_i = mod_blend[i]
+            order_m = sorted(range(4), key=lambda k: -mod_w[k])
+            for a, b in zip(order_m, order_d):
+                if mod_w[a] < w_min:
+                    break
+                if abs(mod_w[a] - dump_w[b]) <= w_eps:
+                    counter = votes.get(mod_i[a])
+                    if counter is None:
+                        votes[mod_i[a]] = {dump_i[b]: 1}
+                    else:
+                        counter[dump_i[b]] = counter.get(dump_i[b], 0) + 1
+
+    distances.sort()
+    stats = {'matched': matched, 'total': len(dump_pos),
+             'median': distances[len(distances) // 2] if distances else 0.0}
+    return votes, stats
+
+
+def resolve_bone_map(votes):
+    """按票数贪心，保证一一对应 -> {旧: {'new': 新, 'votes': 票数}}"""
+    flat = [((old, new), count)
+            for old, counter in votes.items()
+            for new, count in counter.items()]
+    flat.sort(key=lambda item: -item[1])
+
+    mapping = {}
+    used_new = set()
+    for (old, new), count in flat:
+        if old in mapping or new in used_new:
+            continue
+        mapping[old] = {'new': new, 'votes': count}
+        used_new.add(new)
+    return mapping
+
+
+def section_by_hash(text, hash_value):
+    """节里 hash = xxx 的那个节的内容"""
+    if not hash_value:
+        return None
+    for title, start, end in split_sections(text):
+        body = text[start:end]
+        m = HASH_LINE_RE.search(body)
+        if m and m.group(1).lower() == str(hash_value).lower():
+            return body
+    return None
+
+
+def buf_by_slot(ini_path: Path, text: str, hash_value, slots):
+    """按 hash 找节，再顺着 vb0 / vb2 找缓冲文件"""
+    body = section_by_hash(text, hash_value)
+    if body is None:
+        return None
+    for slot in slots:
+        for resource in follow_slot_resources(text, body, slot):
+            definition = find_resource_definition(text, resource)
+            if not definition:
+                continue
+            path = ini_path.parent / definition['filename']
+            if path.exists():
+                return path
+    return None
+
+
+def vgx_auto_candidate(ini_path: Path, text: str, info: dict):
+    """一个 dump 网格能不能对上一个 mod 缓冲（按 hash 定位）"""
+    ref_blend = info.get('blend_buf')
+    ref_pos = info.get('position_buf')
+    if not ref_blend or not ref_pos:
+        return None
+    if not Path(ref_blend).exists() or not Path(ref_pos).exists():
+        return None
+
+    # blend 节：用 dump 的 blend hash 找；找不到再用 position hash
+    # （有些作者把 vb2 写进 position 那一节里）
+    blend_path = None
+    for hash_value in (info.get('blend_hash'), info.get('position_hash')):
+        blend_path = buf_by_slot(ini_path, text, hash_value, ('vb2',))
+        if blend_path:
+            break
+    if not blend_path:
+        return None
+
+    # position：同名前缀的先试，再看 ini 里 vb0 指到哪
+    stem = blend_path.name[:-4].replace('Blend', 'Position').replace('blend', 'position')
+    pos_path = blend_path.with_name(stem + '.buf')
+    if not pos_path.exists():
+        pos_path = None
+        for hash_value in (info.get('position_hash'), info.get('blend_hash')):
+            pos_path = buf_by_slot(ini_path, text, hash_value, ('vb0',))
+            if pos_path:
+                break
+    if not pos_path:
+        return None
+
+    return blend_path, pos_path
+
+
+def vgx_auto_plan(target: Path, dump_meshes: dict):
+    """dump 驱动：返回 [{buf, label, mapping, stats}]（还没做去重，交给调用方挑）"""
+    ini_filepaths = find_ini_files(target)
+    if not ini_filepaths:
+        return []
+
+    candidates = []
+    seen = set()
+    for ini_path in ini_filepaths:
+        try:
+            text = ini_path.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            continue
+        for _tex_hash, info in sorted(dump_meshes.items()):
+            hit = vgx_auto_candidate(ini_path, text, info)
+            if not hit:
+                continue
+            blend_path, pos_path = hit
+            key = str(blend_path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+
+            mod_blend = load_blend_verts(blend_path)
+            mod_pos = load_positions(pos_path)
+            dump_blend = load_blend_verts(Path(info['blend_buf']))
+            dump_pos = load_positions(Path(info['position_buf']))
+            if not mod_blend or not mod_pos or not dump_blend or not dump_pos:
+                continue
+
+            votes, stats = derive_bone_map(mod_blend, mod_pos, dump_blend, dump_pos)
+            if not votes:
+                print('- [VGX] "{}"  [{}]  {}'.format(
+                    blend_path, '{}（dump）'.format(info.get('character') or info.get('mesh')),
+                    c('和 dump 位置配不上（半径 {} 内没有顶点），跳过'.format(VGX_RADIUS), Style.YELLOW)))
+                continue
+            mapping = resolve_bone_map(votes)
+            changed = {o: v for o, v in mapping.items() if v['new'] != o}
+            if not changed:
+                continue      # 全是恒等 = 这个网格已经不用修，不占提示
+
+            matched_ratio = stats['matched'] / stats['total'] if stats['total'] else 0
+            if matched_ratio < 0.05:
+                print('- [VGX] "{}"  [{}]  {}'.format(
+                    blend_path, '{}（dump）'.format(info.get('character') or info.get('mesh')),
+                    c('和 dump 配得上的顶点只有 {:.1%}，不是同一套网格，跳过'.format(matched_ratio),
+                      Style.YELLOW)))
+                continue
+
+            candidates.append({
+                'buf': blend_path,
+                'label': '{}（dump 自动推）'.format(info.get('character') or info.get('mesh') or '?'),
+                'mapping': {o: v['new'] for o, v in mapping.items()},
+                'detail': mapping,
+                'stats': stats,
+                'changed': changed,
+                'matched_ratio': matched_ratio,
+            })
+    return candidates
+
+
+def vgx_plan(target: Path):
+    """返回 (待修列表, 已跳过的条数)"""
+    ini_filepaths = find_ini_files(target)
+    if not ini_filepaths:
+        return [], 0, '没找到 ini 文件'
+
+    hits = {}
+    for ini_filepath in ini_filepaths:
+        try:
+            ini_content = ini_filepath.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            traceback.print_exc()
+            return [], 0, '读取失败 "{}"'.format(ini_filepath)
+
+        for character in VGX_CHARACTERS:
+            for position_hash in character.get('hashes', []):
+                for blend_path in vgx_blend_filepaths(ini_filepath, ini_content, position_hash):
+                    hits.setdefault(str(blend_path.resolve()), (blend_path, []))[1].append(character)
+
+    planned = []
+    skipped = 0
+    for key in sorted(hits):
+        blend_path, characters = hits[key]
+        names = []
+        for character in characters:
+            if character['name'] not in names:
+                names.append(character['name'])
+        label = ' + '.join(names)
+
+        state = find_backup_like(blend_path)
+        if state:
+            print('- [VGX] "{}"  [{}]  {}{}{}'.format(
+                blend_path, label, Style.YELLOW, '已修过({})，跳过'.format(state), Style.RESET))
+            skipped += 1
+            continue
+        if not blend_path.exists():
+            print('- [VGX] "{}"  [{}]  {}'.format(blend_path, label, c('文件不存在，跳过', Style.YELLOW)))
+            skipped += 1
+            continue
+
+        tables = []
+        for character in characters:
+            table = dict(zip(character['old'], character['new']))
+            if table not in tables:
+                tables.append(table)
+        if len(tables) > 1:
+            print('- [VGX] "{}"  [{}]  {}'.format(
+                blend_path, label, c('被两条不同的表命中，无法确定用哪条，跳过', Style.YELLOW)))
+            skipped += 1
+            continue
+
+        # 这几行先攒着不打印：如果用户等下选了"用 dump 自动推"，这几行就过期了
+        planned.append({
+            'buf': blend_path, 'table': tables[0], 'label': label,
+            'lines': ['- [VGX] "{}"  [{}]'.format(blend_path, label),
+                      '        骨骼索引重映射（用表）'],
+        })
+
+    return planned, skipped, None
+
+
+def vgx_apply(planned, total=None, done0=0):
+    for index, item in enumerate(planned, 1):
+        buf = item['buf']
+        original = buf.read_bytes()
+        vgx_backup_of(buf).write_bytes(original)
+        buf.write_bytes(vgx_remap(original, item['table']))
+        vgx_marker_of(buf).write_text('', encoding='utf-8')
+        print(c('已修 [VGX]: "{}"  ({})'.format(buf.name, item['label']), Style.GREEN))
+        iv_progress(done0 + index, total or len(planned), buf.name)
+
+
+# ==========================================================================
+#  二、texcoord 顶点格式
+# ==========================================================================
+
+def fmt_stride(fmt):
+    return struct.calcsize('<' + ''.join(fmt))
+
+
+def fmt_count(chunk):
+    m = re.match(r'(\d+)', chunk)
+    return int(m.group(1)) if m else 0
+
+
+def target_formats(target):
+    old_format = target.get('old_format')
+    new_format = target.get('new_format')
+    if not old_format or not new_format:
+        return None, None
+    return tuple(old_format), tuple(new_format)
+
+
+def validate_texcoord() -> bool:
+    ok = True
+    for target in TEXCOORD_TARGETS:
+        name = target.get('name', '(没写 name)')
+        if not re.fullmatch(r'[0-9a-fA-F]{8}', str(target.get('hash', ''))):
+            print(c('[配置错误] {}: hash "{}" 不是 8 位十六进制'.format(name, target.get('hash')), Style.RED))
+            ok = False
+
+        old_format, new_format = target_formats(target)
+        if not old_format:
+            print(c('[配置错误] {}: 必须填 old_format 和 new_format'.format(name), Style.RED))
+            ok = False
+            continue
+        if len(old_format) != len(new_format):
+            print(c('[配置错误] {}: old_format 有 {} 块，new_format 有 {} 块，必须一样多'.format(
+                name, len(old_format), len(new_format)), Style.RED))
+            ok = False
+            continue
+        for chunk in list(old_format) + list(new_format):
+            if not re.fullmatch(r'\d+[BefIHi]?', str(chunk)):
+                print(c('[配置错误] {}: 格式写法不对 "{}"（例：4B / 2e / 2f / 4f / 4I）'.format(name, chunk), Style.RED))
+                ok = False
+        if fmt_stride(old_format) == fmt_stride(new_format):
+            print(c('[配置警告] {}: old/new 都是 {} 字节，转了等于没转'.format(
+                name, fmt_stride(old_format)), Style.YELLOW))
+    return ok
+
+
+HASH_LINE_RE = re.compile(r'(?m)^[ \t]*hash[ \t]*=[ \t]*([0-9a-fA-F]{8})[ \t]*$')
+VB_LINE_RE = re.compile(r'(?mi)^[ \t]*(vb0|vb1|vb2|run)[ \t]*=[ \t]*(.+?)[ \t]*$')
+
+
+def find_hash_span(body, hash_value):
+    """在节内容里找 hash = xxx（跳过被 ; 注释掉的）"""
+    for m in HASH_LINE_RE.finditer(body):
+        if m.group(1).lower() == str(hash_value).lower():
+            return m.span(1)
+    return None
+
+
+def follow_slot_resources(text, body, slot, depth=0):
+    """收集 slot = xxx（vb1/vb2）；遇到 run = CommandList 追进去"""
+    if depth > 5:
+        return []
+    resources = []
+    for m in VB_LINE_RE.finditer(body):
+        key, value = m.group(1).lower(), m.group(2).strip()
+        if key == slot:
+            resources.append(value)
+        elif key == 'run':
+            for title, start, end in split_sections(text):
+                if title.strip().lower() == value.lower():
+                    resources.extend(follow_slot_resources(text, text[start:end], slot, depth + 1))
+                    break
+    return resources
+
+
+def follow_vb1_resources(text, body, depth=0):
+    return follow_slot_resources(text, body, 'vb1', depth)
+
+
+def follow_vb2_resources(text, body, depth=0):
+    return follow_slot_resources(text, body, 'vb2', depth)
+
+
+def find_resource_definition(text, resource_name):
+    for title, start, end in split_sections(text):
+        if title.strip().lower() != resource_name.strip().lower():
+            continue
+        body = text[start:end]
+        filename_match = re.search(r'(?m)^[ \t]*filename[ \t]*=[ \t]*(.+?)[ \t]*$', body, re.IGNORECASE)
+        if not filename_match:
+            return None
+        stride_match = re.search(r'(?m)^[ \t]*stride[ \t]*=[ \t]*(\d+)', body, re.IGNORECASE)
+        return {
+            'section': title,
+            'filename': filename_match.group(1).strip(),
+            'stride': int(stride_match.group(1)) if stride_match else None,
+            'stride_span': (start + stride_match.start(1), start + stride_match.end(1)) if stride_match else None,
+        }
+    return None
+
+
+def tex_convert(data: bytes, count: int, old_format, new_format) -> bytes:
+    """按元素块逐个转换（写法和版本修复工具 zzz_13_remap_texcoord 一致）"""
+    if len(old_format) != len(new_format):
+        raise ValueError('old_format 和 new_format 的元素个数必须一样')
+
+    old_stride = fmt_stride(old_format)
+    offsets = [0]
+    for chunk in old_format:
+        offsets.append(offsets[-1] + struct.calcsize('<' + chunk))
+
+    out = bytearray()
+    for i in range(count):
+        base = i * old_stride
+        for j, (old_chunk, new_chunk) in enumerate(zip(old_format, new_format)):
+            if offsets[j] >= old_stride:          # 超出旧缓冲范围，补 0
+                out.extend(struct.pack('<' + new_chunk, *([0] * fmt_count(new_chunk))))
+                continue
+            if old_chunk == new_chunk:            # 没变，原样搬
+                out.extend(data[base + offsets[j]: base + offsets[j + 1]])
+                continue
+            # 颜色块：字节 0-255 和 0.0-1.0 的浮点 / 半浮点互转（不是原样搬数值）
+            if old_chunk == '4B' and new_chunk == '4f':
+                out.extend(struct.pack('<4f', *[b / 255.0 for b in struct.unpack_from('<4B', data, base + offsets[j])]))
+            elif old_chunk == '4f' and new_chunk == '4B':
+                values = [min(255, max(0, int(round(f * 255)))) for f in struct.unpack_from('<4f', data, base + offsets[j])]
+                out.extend(struct.pack('<4B', *values))
+            elif old_chunk == '4B' and new_chunk == '4e':
+                out.extend(struct.pack('<4e', *[b / 255.0 for b in struct.unpack_from('<4B', data, base + offsets[j])]))
+            elif old_chunk == '4e' and new_chunk == '4B':
+                values = [min(255, max(0, int(round(f * 255)))) for f in struct.unpack_from('<4e', data, base + offsets[j])]
+                out.extend(struct.pack('<4B', *values))
+            else:                                  # 其他块按格式重新打包
+                out.extend(struct.pack('<' + new_chunk, *struct.unpack_from('<' + old_chunk, data, base + offsets[j])))
+    return bytes(out)
+
+
+def vertex_count_of(buf_path: Path):
+    """用同名的 Blend(32) / Position(40) 反推顶点数"""
+    stem = buf_path.name[:-4]
+    for suffix, stride in (('Blend', 32), ('Position', 40)):
+        for candidate in (buf_path.with_name(stem.replace('Texcoord', suffix) + '.buf'),
+                          buf_path.with_name(stem.replace('texcoord', suffix) + '.buf')):
+            if candidate.exists():
+                size = candidate.stat().st_size
+                if size % stride == 0:
+                    return size // stride, candidate.name
+    return None, None
+
+
+def blend_buf_by_hash(ini_path: Path, text: str, blend_hash):
+    """按 blend 节的 hash 找 blend 缓冲文件（不依赖文件命名）"""
+    if not blend_hash:
+        return None
+    for title, start, end in split_sections(text):
+        body = text[start:end]
+        m = HASH_LINE_RE.search(body)
+        if not m or m.group(1).lower() != str(blend_hash).lower():
+            continue
+        for resource in follow_vb2_resources(text, body):
+            definition = find_resource_definition(text, resource)
+            if not definition:
+                continue
+            path = ini_path.parent / definition['filename']
+            if path.exists():
+                return path
+    return None
+
+
+def vertex_count_by_hash(ini_path: Path, text: str, blend_hash):
+    """按 blend 节的 hash 找 blend 缓冲 -> 顶点数"""
+    path = blend_buf_by_hash(ini_path, text, blend_hash)
+    if path and path.stat().st_size % 32 == 0:
+        return path.stat().st_size // 32, path.name
+    return None, None
+
+
+def dxgi_chunk(fmt, width):
+    """DXGI 格式名 -> 顶点格式记法（认不出来就按字节数猜一个等宽写法）"""
+    if fmt in DXGI_CHUNK:
+        return DXGI_CHUNK[fmt]
+    if width % 4 == 0:
+        return '{}f'.format(width // 4)
+    if width % 2 == 0:
+        return '{}e'.format(width // 2)
+    return '{}B'.format(width)
+
+
+def load_dump_folder(folder: Path):
+    """读 dump 文件夹里的 json -> {texcoord hash: {mesh, new_format, blend_hash}}
+
+    角色名（只影响输出显示）：
+        直接放在 dump 根目录 -> 文件名（不含 .json）
+        放在子文件夹里       -> 子文件夹名
+    """
+    meshes = {}
+    for json_path in sorted(folder.rglob('*.json')):
+        try:
+            data = json.loads(json_path.read_text(encoding='utf-8', errors='replace'))
+        except Exception:
+            continue
+
+        hashes = {str(k).lower(): str(v).lower() for k, v in (data.get('CategoryHash') or {}).items()}
+        tex_hash = hashes.get('texcoord')
+        if not tex_hash:
+            continue
+
+        elements = None
+        for category in data.get('CategoryBufferList', []):
+            items = category.get('D3D11ElementList', [])
+            if items and str(items[0].get('Category', '')).lower() == 'texcoord':
+                elements = items
+                break
+        if not elements:
+            continue
+
+        relative = json_path.relative_to(folder)
+        character = relative.parts[0] if len(relative.parts) > 1 else json_path.stem
+
+        # 同一个文件夹里 3DMigoto 还会 dump 出 -*Blend.buf / -*Position.buf
+        # 有这两个（且都能被 32 / 40 整除）才能自动推 VGX 映射
+        blend_buf = position_buf = None
+        try:
+            for candidate in sorted(json_path.parent.iterdir()):
+                low = candidate.name.lower()
+                if not candidate.is_file() or not low.endswith('.buf'):
+                    continue
+                if 'backup' in low:
+                    continue
+                size = candidate.stat().st_size
+                if 'blend' in low and size and size % 32 == 0:
+                    blend_buf = blend_buf or candidate
+                elif 'position' in low and size and size % 40 == 0:
+                    position_buf = position_buf or candidate
+        except OSError:
+            pass
+
+        meshes[tex_hash] = {
+            'mesh': json_path.name.split('-')[0],
+            'character': character,
+            'new_format': tuple(dxgi_chunk(str(e.get('Format', '')), int(e.get('ByteWidth', 0)))
+                                for e in elements),
+            'blend_hash': hashes.get('blend'),
+            'position_hash': hashes.get('position'),
+            'blend_buf': blend_buf,
+            'position_buf': position_buf,
+            'source': json_path.name,
+        }
+    return meshes
+
+
+def dump_roots():
+    r"""要自动扫描的 dump 根目录，按优先级从低到高（后面的覆盖前面的同名网格）：
+    旧位置 索引与顶点修复工具\dump\（有就用，照顾老用户）
+        -> 本程序目录下的 dump\   <- 正式位置，以后就用它
+        -> DUMP_DIRS 里配置的 / 运行时选的"""
+    roots = []
+    legacy = SCRIPT_DIR / '索引与顶点修复工具' / DUMP_DIR_NAME
+    if legacy.is_dir():
+        roots.append(legacy)
+    roots.append(SCRIPT_DIR / DUMP_DIR_NAME)
+    for raw in DUMP_DIRS:
+        path = Path(raw)
+        if path not in roots:
+            roots.append(path)
+    return roots
+
+
+def refresh_dumps():
+    r"""加载 dump：本程序目录下的 dump\ 里的 + DUMP_DIRS 里配置的
+
+    读到的全放进 ALL_DUMPS，DUMP_MESHES 是这次实际生效的那一份
+    （用户选了某个角色就只留那个角色的）。
+    """
+    ALL_DUMPS.clear()
+    for folder in dump_roots():
+        if folder.is_dir():
+            ALL_DUMPS.update(load_dump_folder(folder))
+    set_active_dumps(None)
+
+
+def character_of(info: dict) -> str:
+    """网格属于哪个角色（取名字里 '-' '_' 前面那一段）"""
+    name = info.get('character') or info.get('mesh') or '?'
+    return re.split(r'[-_ ]', name, maxsplit=1)[0] or name
+
+
+def character_groups(dumps: dict = None) -> dict:
+    """按角色分组 -> {角色名: [tex_hash, ...]}"""
+    groups = {}
+    for tex_hash, info in (dumps or ALL_DUMPS).items():
+        groups.setdefault(character_of(info), []).append(tex_hash)
+    return groups
+
+
+def set_active_dumps(character):
+    """把生效的 dump 限定到某个角色；None = 全都用"""
+    DUMP_MESHES.clear()
+    if character is None:
+        DUMP_MESHES.update(ALL_DUMPS)
+        return
+    for tex_hash, info in ALL_DUMPS.items():
+        if character_of(info) == character:
+            DUMP_MESHES[tex_hash] = info
+
+
+def dump_mesh_names(character) -> str:
+    """某个角色下都有哪些网格（显示用）"""
+    names = sorted({ALL_DUMPS[h]['character'] for h in character_groups().get(character, [])})
+    return '、'.join(names)
+
+
+def describe_active_dumps() -> str:
+    if not DUMP_MESHES:
+        return '没有'
+    groups = character_groups(DUMP_MESHES)
+    return '、'.join('{}({})'.format(name, len(groups[name])) for name in sorted(groups))
+
+
+def choose_character():
+    """让用户选这次修哪个角色；返回选中的角色名，None = 全都用/没有 dump"""
+    if not ALL_DUMPS:
+        return None
+
+    groups = character_groups()
+    if len(groups) == 1:
+        only = next(iter(groups))
+        set_active_dumps(only)
+        print('dump\\ 里只有一个角色：{}（{}）'.format(only, dump_mesh_names(only)))
+        print()
+        return only
+
+    print('dump\\ 里有这些角色的参照数据：')
+    names = sorted(groups)
+    for index, name in enumerate(names, 1):
+        print('  {}. {:<10} {}'.format(index, name, dump_mesh_names(name)))
+    print('  0. 全都用（会跨角色匹配，不推荐）')
+    print()
+
+    while True:
+        raw = ask('  这次修哪个角色？输序号（回车 = 1）: ').strip()
+        if raw.lower() in EXIT_WORDS:
+            print('退出。')
+            sys.exit(0)
+        if raw == '':
+            index = 1
+        elif raw.isdigit():
+            index = int(raw)
+            if index == 0:
+                set_active_dumps(None)
+                print('  用全部 dump。')
+                print()
+                return None
+        else:
+            print(c('  输个序号。', Style.YELLOW))
+            continue
+        if 1 <= index <= len(names):
+            name = names[index - 1]
+            set_active_dumps(name)
+            print('  这次只用【{}】的参照：{}'.format(name, dump_mesh_names(name)))
+            print()
+            return name
+        print(c('  没有这个序号。', Style.YELLOW))
+
+
+DUMP_README = r"""dump 文件夹 —— 各角色的网格信息（贴图错乱修复用）
+================================================
+
+普通用户
+    不用动这里，也不用自己做任何操作。这是作者放好的数据，
+    程序启动时自动读 —— 你直接把 mod 文件夹拖进程序窗口就行。
+
+    这个文件夹就在程序（exe）旁边；删了下次启动会自动重建一个空的。
+    更新程序时它会跟着新版一起换，别在这里放自己的东西。
+
+    里面缺哪个角色/哪个网格，反馈给作者补一份即可。
+    （进游戏抓 dump 是作者的事，不需要你来做。）
+
+    作者提供了哪些网格，启动时程序会列出来：
+        dump 已读：3 个网格，角色：琉音、艾莲、露西
+
+作者（维护这个文件夹的人）
+    把 F8 抓的 Frame Analysis dump 的 json 丢进来，改成角色名就行：
+
+        dump\
+            琉音.json
+            艾莲-脸部.json
+
+    角色多的话也可以一个角色一个子文件夹：
+
+        dump\
+            琉音\
+                a1b2c3d4-12345-0.json
+            艾莲\
+                ...
+
+    名字只用来在输出里显示，随便改，json 内容不依赖文件名。
+    整个 3DMigoto 那种嵌套目录（<ib hash>-<n>-<i>\TYPE_...\xxx.json）
+    直接拷过来也行，程序会递归找。
+
+    抓法：游戏里进到该角色的画面，按 F8 抓 Frame Analysis，在 3DMigoto 的
+    FrameAnalysis 文件夹里找到该网格的 json（文件名形如
+    <ib hash>-<索引数>-<首个索引>.json），复制过来。
+
+    顺带也管骨骼索引（VGX，腿弯 / 塌陷 / 扭曲）：
+    同一个网格文件夹里再放上它的 -*Blend.buf 和 -*Position.buf，工具就能拿
+    dump 当参照自动推索引映射 —— mod 的网格通常是游戏原网格的细分版，
+    位置对得上，于是逐顶点投票，把 mod 的旧索引对上 dump 的新索引。
+
+        json          该网格的 CategoryHash（定位 mod 那边是哪个 buf）
+        -*Blend.buf   新编号的骨骼索引（投票的目标）
+        -*Position.buf 位置（配对用，缺了这个就推不了）
+
+    抓 dump 时这三样本来就在同一个 TYPE_ 目录里，整个文件夹拷过来即可。
+
+    实测琉音身体：mod 351810 顶点 / 游戏 15715 顶点，位置最近距离中位
+    0.0033（身高的约 0.3%），推出来的映射和已知的表比对 25/26 一致。
+
+注意
+    - json 要能看到这个网格的 texcoord，抓的时候别选错 draw
+    - 前提仍然是 mod 的 ini 里 hash 已经是当前值（先跑版本修复工具），
+      VGX 自动推也是靠 dump 的 CategoryHash 去 ini 里定位 buf 的
+    - 表里和 dump 里都能修同一个网格时，程序会问一次用哪个
+      （texcoord 默认表，由 PREFER_DUMP 决定；VGX 默认推荐表）
+    - 表里没有、只有 dump 能推的网格，程序会问一次要不要用 dump 推的修
+"""
+
+
+def ensure_dump_dir():
+    """本程序目录下的 dump\\ 不存在就建一个，附一份说明。
+    这是 dump 的正式位置：打包时整个文件夹随包发，自动更新也跟着 zip 一起更。
+    旧位置（索引与顶点修复工具\\dump\\）只是兼容，读到就用，不再往那边放东西。"""
+    folder = SCRIPT_DIR / DUMP_DIR_NAME
+    try:
+        folder.mkdir(exist_ok=True)
+        readme = folder / '说明.txt'
+        if not readme.exists():
+            readme.write_text(DUMP_README, encoding='utf-8')
+    except Exception:
+        pass
+
+
+def load_dump_into_session(folder: Path):
+    """运行时把 dump 文件夹拖进来，返回 (新增网格数, 共读到几个, 新增的角色名)"""
+    found = load_dump_folder(folder)
+    added = 0
+    names = set()
+    for tex_hash, info in found.items():
+        if tex_hash not in ALL_DUMPS:
+            added += 1
+            names.add(character_of(info))
+        ALL_DUMPS[tex_hash] = info
+        DUMP_MESHES[tex_hash] = info
+    return added, len(found), sorted(names)
+
+
+def infer_old_formats(new_format, per_vertex) -> list:
+    """从 new_format 倒推旧格式：把某个 float4 块缩成 4 字节 / half4，看哪个等宽
+
+    返回所有凑得上每顶点字节数的候选，按位置从前往后。
+    真实改法是顶点 COLOR 那块，在 texcoord 里排第一个，所以取第一个候选。
+    """
+    hits = []
+    for index, chunk in enumerate(new_format):
+        if chunk != '4f':
+            continue
+        for shrink in ('4B', '4e'):
+            candidate = list(new_format)
+            candidate[index] = shrink
+            if fmt_stride(tuple(candidate)) == per_vertex:
+                hits.append(tuple(candidate))
+    return hits
+
+
+def tex_backup_of(buf: Path) -> Path:
+    return buf.with_name(buf.stem + TEX_BACKUP_SUFFIX)
+
+
+def tex_marker_of(buf: Path) -> Path:
+    return buf.with_name(buf.stem + TEX_MARKER_SUFFIX)
+
+
+def tex_inventory(target: Path):
+    """按网格分组列出所有 texcoord buf：[(buf, 每顶点字节数)]"""
+    groups = {}
+    for path in sorted(target.rglob('*.buf')):
+        name = path.name[:-4]
+        low = name.lower()
+        if 'backup' in low or '.bak' in low:
+            continue
+        for suffix in ('position', 'blend', 'texcoord'):
+            if low.endswith(suffix):
+                groups.setdefault(name[:-len(suffix)], {})[suffix] = path
+                break
+
+    rows = []
+    for group in groups.values():
+        count = None
+        for suffix, stride in (('blend', 32), ('position', 40)):
+            path = group.get(suffix)
+            if path and path.exists() and path.stat().st_size % stride == 0:
+                count = path.stat().st_size // stride
+                break
+        path = group.get('texcoord')
+        if not path or not count or not path.exists():
+            continue
+        size = path.stat().st_size
+        rows.append((path, size // count if size % count == 0 else size / count))
+    return rows
+
+
+def dump_old_strides() -> dict:
+    """dump 里的网格倒推出来的旧步幅 -> {步幅: 角色名集合}"""
+    result = {}
+    for info in DUMP_MESHES.values():
+        new_stride = fmt_stride(info['new_format'])
+        who = info.get('character') or info.get('mesh') or '?'
+        for delta in (12, 8):      # COLOR 块缩成 4B / half4
+            for candidate in infer_old_formats(info['new_format'], new_stride - delta):
+                result.setdefault(fmt_stride(candidate), set()).add(who)
+    return result
+
+
+def table_hashes():
+    return {str(entry.get('hash', '')).lower() for entry in TEXCOORD_TARGETS}
+
+
+def dump_entry(tex_hash: str, info: dict) -> dict:
+    """把 dump 里的一个网格转成一条内部条目"""
+    source = info['source']
+    if info.get('character') and info['character'] != Path(source).stem:
+        # 放在子文件夹里：带上文件夹名，好定位是哪个网格的 dump
+        label = '{}（dump：{}\\{}）'.format(info['mesh'], info['character'], source)
+    else:
+        # 直接放在 dump\ 下：文件名就是角色名，不用再重复一遍
+        label = '{}（dump）'.format(Path(source).stem)
+    return {
+        'name': label,
+        'hash': tex_hash,
+        'new_format': info['new_format'],
+        'blend_hash': info['blend_hash'],
+        'from_dump': True,
+    }
+
+
+def dump_conflicts():
+    """表里和 dump 里都有的网格 hash（两边数据可能不一样，要用户挑一个）"""
+    return sorted(set(DUMP_MESHES) & table_hashes())
+
+
+def conflicts_differ():
+    """两边都有的网格里，数据真的对不上的那些"""
+    result = []
+    for entry in TEXCOORD_TARGETS:
+        info = DUMP_MESHES.get(str(entry.get('hash', '')).lower())
+        if not info:
+            continue
+        _old, new_format = target_formats(entry)
+        if not new_format:
+            continue
+        if tuple(new_format) != tuple(info['new_format']):
+            result.append((entry, info))
+    return result
+
+
+def tex_plan(target: Path, use_dump_for_conflicts: bool = None):
+    """按 hash 定位目标网格，返回 (待改列表, 已跳过条数, 错误)"""
+    ini_filepaths = find_ini_files(target)
+    if not ini_filepaths:
+        return [], 0, '没找到 ini 文件'
+
+    if use_dump_for_conflicts is None:
+        use_dump_for_conflicts = PREFER_DUMP
+
+    # 目标 = 表里的 + dump 里多出来的
+    # 两边都有的：按 PREFER_DUMP（或用户当场选的）留一个
+    skip_from_dump = set() if use_dump_for_conflicts else table_hashes()
+    skip_from_table = table_hashes() if use_dump_for_conflicts else set()
+
+    entries = [entry for entry in TEXCOORD_TARGETS
+               if str(entry.get('hash', '')).lower() not in skip_from_table]
+    for tex_hash, info in sorted(DUMP_MESHES.items()):
+        if tex_hash in skip_from_dump:
+            continue
+        entries.append(dump_entry(tex_hash, info))
+
+    items = []
+    seen = set()
+    for ini_path in ini_filepaths:
+        text = ini_path.read_text(encoding='utf-8', errors='replace')
+        sections = split_sections(text)
+
+        for target_entry in entries:
+            for title, start, end in sections:
+                body = text[start:end]
+                span = find_hash_span(body, target_entry['hash'])
+                if span is None:
+                    continue
+
+                for resource in follow_vb1_resources(text, body):
+                    definition = find_resource_definition(text, resource)
+                    if not definition:
+                        continue
+                    buf_path = ini_path.parent / definition['filename']
+                    key = (str(ini_path.resolve()), str(buf_path.resolve()))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    items.append({
+                        'ini': ini_path,
+                        'ini_text': text,
+                        'target': target_entry,
+                        'section': title,
+                        'resource': definition['section'],
+                        'buf': buf_path,
+                        'stride': definition['stride'],
+                        'stride_span': definition['stride_span'],
+                    })
+
+    planned = []
+    skipped = 0
+    for item in items:
+        buf = item['buf']
+        label = '{} / 节[{}]'.format(item['target']['name'], item['section'])
+
+        if not buf.exists():
+            print('- [格式] {}  "{}"  {}'.format(label, buf, c('文件不存在，跳过', Style.YELLOW)))
+            skipped += 1
+            continue
+        if item['stride'] is None:
+            print('- [格式] {}  "{}"  {}'.format(label, buf, c('资源节里没有 stride 行，跳过', Style.YELLOW)))
+            skipped += 1
+            continue
+        state = find_backup_like(buf)
+        if state:
+            print('- [格式] {}  "{}"  {}'.format(
+                label, buf, c('已处理过({})，跳过'.format(state), Style.YELLOW)))
+            skipped += 1
+            continue
+
+        old_format, new_format = target_formats(item['target'])
+        from_dump = bool(item['target'].get('from_dump'))
+        if from_dump and not old_format:
+            # dump 来的条目没写旧格式，等下按 buf 实际大小倒推
+            new_format = tuple(item['target']['new_format'])
+        old_stride = fmt_stride(old_format) if old_format else None
+        new_stride = fmt_stride(new_format)
+        size = buf.stat().st_size
+
+        # 顶点数：先按 blend_hash 找 blend 节（不依赖命名），再按同名文件推，
+        # 最后按 buf 大小直接判（只有一边能整除时不用知道顶点数）
+        count, from_what = vertex_count_by_hash(item['ini'], item['ini_text'],
+                                                item['target'].get('blend_hash'))
+        if count:
+            from_what = 'blend hash，{}'.format(from_what)
+        else:
+            count, from_what = vertex_count_of(buf)
+            if count:
+                from_what = '同名文件，{}'.format(from_what)
+            elif old_format:
+                if size % old_stride == 0 and size % new_stride != 0:
+                    count, from_what = size // old_stride, '按 buf 大小'
+                elif size % new_stride == 0 and size % old_stride != 0:
+                    count, from_what = size // new_stride, '按 buf 大小'
+
+        if not count:
+            print('- [格式] {}  "{}"  {}'.format(
+                label, buf, c('算不出顶点数，也判断不出格式，跳过', Style.YELLOW)))
+            skipped += 1
+            continue
+
+        # 能整除就用整数，免得浮点比较出偏差
+        per_vertex = size // count if size % count == 0 else size / count
+
+        inferred = None
+        if from_dump and not old_format:
+            if per_vertex == new_stride:
+                print('- [格式] {}  "{}"  {}'.format(
+                    label, buf, c('已是新格式({})，跳过'.format(new_stride), Style.YELLOW)))
+                skipped += 1
+                continue
+            candidates = infer_old_formats(new_format, per_vertex)
+            if not candidates:
+                print('- [格式] {}  "{}"  {}'.format(
+                    label, buf, c('每顶点 {} 字节，推不出对应的旧格式，跳过'.format(per_vertex), Style.YELLOW)))
+                print('        （dump 给的当前格式是 {}）'.format(' + '.join(new_format)))
+                skipped += 1
+                continue
+            old_format = candidates[0]
+            old_stride = fmt_stride(old_format)
+            inferred = len(candidates) > 1
+
+        do_buf = (per_vertex == old_stride)
+        do_stride = (item['stride'] == old_stride)
+
+        print('- [格式] {}  "{}"'.format(label, buf))
+        print('        格式 {} -> {} 字节/顶点   顶点数 {}（{}）'.format(
+            old_stride, new_stride, count, from_what))
+        if inferred is not None:
+            print('        按 buf 大小倒推：{}  ->  {}'.format(
+                ' + '.join(old_format), ' + '.join(new_format)))
+            if inferred:
+                print(c('        （有多个位置都能凑上，取最靠前的，也就是顶点 COLOR 那块）', Style.YELLOW))
+        if do_buf:
+            print('        buf {} 字节 -> {} 字节'.format(size, count * new_stride))
+        elif per_vertex == new_stride:
+            print('        buf 已是新格式，不用转')
+        else:
+            print('        {}'.format(c('buf 每顶点 {} 字节，和表里的 {} 对不上，跳过'.format(
+                per_vertex, old_stride), Style.YELLOW)))
+            skipped += 1
+            continue
+        if do_stride:
+            print('        ini 里 stride {} -> {}'.format(old_stride, new_stride))
+
+        if do_buf or do_stride:
+            planned.append({
+                'buf': buf, 'ini': item['ini'], 'count': count,
+                'old_format': old_format, 'new_format': new_format,
+                'old_stride': old_stride, 'new_stride': new_stride,
+                'stride_span': item['stride_span'], 'do_buf': do_buf, 'do_stride': do_stride,
+            })
+
+    return planned, skipped, None
+
+
+def tex_apply(planned, total=None, done0=0):
+    ini_texts = {}
+    ini_backed = set()
+
+    def load_ini(ini_path: Path):
+        key = str(ini_path)
+        if key not in ini_texts:
+            ini_texts[key] = ini_path.read_text(encoding='utf-8', errors='replace')
+        return ini_texts[key]
+
+    def ensure_ini_backup(ini_path: Path):
+        key = str(ini_path)
+        if key in ini_backed:
+            return
+        ini_backup = Path(key + TEX_INI_BACKUP_SUFFIX)
+        if not ini_backup.exists():
+            ini_backup.write_bytes(ini_path.read_bytes())
+        ini_backed.add(key)
+
+    for index, item in enumerate(planned, 1):
+        buf = item['buf']
+        ini_path = item['ini']
+        changes = []
+
+        if item['do_buf']:
+            original = buf.read_bytes()
+            tex_backup_of(buf).write_bytes(original)
+            buf.write_bytes(tex_convert(original, item['count'], item['old_format'], item['new_format']))
+            tex_marker_of(buf).write_text('', encoding='utf-8')
+            changes.append('buf {} -> {} 字节'.format(len(original), buf.stat().st_size))
+
+        if item['do_stride']:
+            text = load_ini(ini_path)
+            start, end = item['stride_span']
+            if text[start:end] == str(item['old_stride']):
+                text = text[:start] + str(item['new_stride']) + text[end:]
+                ini_texts[str(ini_path)] = text
+                changes.append('stride {} -> {}'.format(item['old_stride'], item['new_stride']))
+
+        if changes:
+            ensure_ini_backup(ini_path)
+            print(c('已修 [格式]: "{}"  [{}]'.format(buf.name, ' ； '.join(changes)), Style.GREEN))
+        iv_progress(done0 + index, total or len(planned), buf.name)
+
+    for key, text in ini_texts.items():
+        Path(key).write_text(text, encoding='utf-8')
+
+
+# ==========================================================================
+#  三、还原
+# ==========================================================================
+
+def restore(target: Path):
+    """把本工具改过的文件按备份退回（VGX + 格式 一起）"""
+    buf_backups = []
+    for suffix in (VGX_BACKUP_SUFFIX, TEX_BACKUP_SUFFIX, TEX_LEGACY_BACKUP_SUFFIX):
+        buf_backups.extend(sorted(target.rglob('*' + suffix)))
+    ini_backups = []
+    for suffix in (TEX_INI_BACKUP_SUFFIX, TEX_LEGACY_INI_BACKUP_SUFFIX):
+        ini_backups.extend(sorted(target.rglob('*' + suffix)))
+
+    if not buf_backups and not ini_backups:
+        print(c('这个文件夹里没有本工具的备份，没什么可还原的。', Style.YELLOW))
+        return
+
+    def buf_target(backup: Path) -> Path:
+        for suffix in (VGX_BACKUP_SUFFIX, TEX_BACKUP_SUFFIX, TEX_LEGACY_BACKUP_SUFFIX):
+            if backup.name.endswith(suffix):
+                return backup.with_name(backup.name[:-len(suffix)] + '.buf')
+        return backup
+
+    def ini_target(backup: Path) -> Path:
+        text = str(backup)
+        for suffix in (TEX_INI_BACKUP_SUFFIX, TEX_LEGACY_INI_BACKUP_SUFFIX):
+            if text.endswith(suffix):
+                return Path(text[:-len(suffix)])
+        return backup
+
+    lines = ['将要还原：']
+    for backup in buf_backups:
+        lines.append('  - "{}"'.format(buf_target(backup)))
+    for backup in ini_backups:
+        lines.append('  - "{}"'.format(ini_target(backup)))
+    for line in lines:
+        print(line)
+    print()
+    if not iv_asker().confirm_restore(lines):
+        print(c('已取消。', Style.YELLOW))
+        return
+
+    for backup in buf_backups:
+        buf = buf_target(backup)
+        buf.write_bytes(backup.read_bytes())
+        backup.unlink()
+        for marker in (vgx_marker_of(buf), tex_marker_of(buf)):
+            if marker.exists():
+                marker.unlink()
+        print(c('已还原: "{}"'.format(buf), Style.GREEN))
+
+    for backup in ini_backups:
+        ini_path = ini_target(backup)
+        ini_path.write_bytes(backup.read_bytes())
+        backup.unlink()
+        print(c('已还原: "{}"'.format(ini_path), Style.GREEN))
+    print(c('还原完成。', Style.GREEN))
+
+
+# ==========================================================================
+#  四、修复主流程
+# ==========================================================================
+
+def apply_fix(target: Path):
+    print('目录: {}'.format(target))
+    print('VGX 角色表 {} 条    格式目标表 {} 条'.format(len(VGX_CHARACTERS), len(TEXCOORD_TARGETS)))
+
+    # 角色闸门：mod 的 ini 里命中本次参照的任意一个 hash = 同一个角色，整包放行；
+    # 一个都没命中 = 不是这个角色的 mod，一个文件都不动（每个角色的 hash 都不一样）
+    hit, which = mod_ref_hit(target, active_ref_hashes())
+    if not hit:
+        print()
+        print(c('这个 mod 的 ini 里没有一个 hash 属于本次参照【{}】。'.format(ref_scope_text()),
+                Style.YELLOW))
+        print(c('不是同一个角色，整包不处理 —— 想修它就把“角色参照”换成它对应的角色。',
+                Style.YELLOW))
+        return
+    if which:
+        print('角色比对：ini 里的 hash {} 命中本次参照【{}】'.format(which, ref_scope_text()))
+    print()
+
+    if not validate_vgx() or not validate_texcoord():
+        print()
+        print(c('表里有写错的地方，先改好再跑。已中止。', Style.RED))
+        return
+
+    print('===== 一、VGX 骨骼索引 =====')
+    vgx_items, _vgx_skipped, vgx_error = vgx_plan(target)
+    if vgx_error:
+        print(c('（{}）'.format(vgx_error), Style.YELLOW))
+    table_paths = {str(item['buf'].resolve()) for item in vgx_items}
+
+    # dump 驱动：mod 的网格和 dump 按位置配得上，就自己推映射
+    auto_items = vgx_auto_plan(target, DUMP_MESHES) if DUMP_MESHES else []
+    both = [it for it in auto_items if str(it['buf'].resolve()) in table_paths]
+    only_auto = [it for it in auto_items if str(it['buf'].resolve()) not in table_paths]
+
+    approved = []
+
+    if both:
+        if iv_asker().source_choice('vgx', '、'.join(it['buf'].name for it in both),
+                                    len(both), False) == 'dump':
+            drop = {str(it['buf'].resolve()) for it in both}
+            vgx_items = [it for it in vgx_items if str(it['buf'].resolve()) not in drop]
+            approved += both          # 已经选过 dump 了，不再问一遍
+        print()
+
+    if only_auto:
+        if iv_asker().auto_vgx_choice([str(it['buf']) for it in only_auto]):
+            approved += only_auto
+        print()
+
+    # 决定完了才打印各条要做什么
+    for item in vgx_items:
+        for line in item.get('lines', []):
+            print(line)
+    for it in approved:
+        changed = it['changed']
+        low = [o for o in changed if changed[o]['votes'] < VGX_LOW_VOTES]
+        print('- [VGX] "{}"  [{}]'.format(it['buf'], it['label']))
+        print('        按位置配对推出来的骨骼索引映射（用 dump）')
+        print('        配到 {}/{} 个 dump 顶点（{:.1%}），中位偏差 {:.5f}'.format(
+            it['stats']['matched'], it['stats']['total'],
+            it['matched_ratio'], it['stats']['median']))
+        print('        要改 {} 条：{}'.format(
+            len(changed),
+            ', '.join('{}->{}'.format(o, changed[o]['new']) for o in sorted(changed)[:12])
+            + (' ...' if len(changed) > 12 else '')))
+        if low:
+            print(c('        有 {} 条票数偏少，可能是配错顶点凑的，重点核对：{}'.format(
+                len(low), ', '.join('{}->{}'.format(o, changed[o]['new']) for o in sorted(low)[:6])),
+                Style.YELLOW))
+        vgx_items.append({'buf': it['buf'], 'table': it['mapping'], 'label': it['label']})
+
+    if not vgx_items:
+        if not VGX_CHARACTERS and not DUMP_MESHES:
+            print(c('（没得比 —— VGX_CHARACTERS 表是空的，dump\\ 里也没有 dump）', Style.YELLOW))
+            print('  骨骼索引错位（腿弯、塌陷）要么填表（用 查找VGX映射工具），')
+            print('  要么把该网格的 dump 放进 dump\\（json + -*Blend.buf + -*Position.buf）')
+        elif not vgx_error:
+            print('（没有命中的网格，或都已经修过了）')
+    print()
+
+    print('===== 二、texcoord 顶点格式 =====')
+    use_dump = None
+    conflicts = dump_conflicts()
+    if conflicts:
+        for entry, info in conflicts_differ():
+            _old, new_format = target_formats(entry)
+            print(c('  ! "{}" 两边给的格式不一样：表 {} / dump {}'.format(
+                entry.get('name', '?'), ' + '.join(new_format), ' + '.join(info['new_format'])),
+                Style.YELLOW))
+        use_dump = (iv_asker().source_choice('tex', '、'.join(conflicts), len(conflicts),
+                                             PREFER_DUMP) == 'dump')
+        print('  -> 这次用 {} 里的数据'.format('dump' if use_dump else '表'))
+        print()
+
+    tex_items, _tex_skipped, tex_error = tex_plan(target, use_dump)
+    if tex_error:
+        print(c('（{}）'.format(tex_error), Style.YELLOW))
+    elif not tex_items:
+        if not TEXCOORD_TARGETS and not DUMP_MESHES:
+            print(c('（没得比 —— TEXCOORD_TARGETS 表是空的，dump\\ 里也没有 dump）', Style.YELLOW))
+            print('  贴图错乱要修，得先有这个网格的 dump —— 找作者要一份放进 dump\\')
+        else:
+            print('（没有命中的网格，或都已经处理过了）')
+    print()
+
+    # 漏网提醒：旧格式但没被处理到的 texcoord
+    planned_paths = {str(item['buf'].resolve()) for item in tex_items}
+    known_old = set()
+    for entry in TEXCOORD_TARGETS:
+        old_format, _new_format = target_formats(entry)
+        if old_format:
+            known_old.add(fmt_stride(old_format))
+    dump_strides = dump_old_strides()          # dump 里网格能倒推出来的旧步幅
+    known_old |= set(dump_strides)
+
+    orphans = [(path, per) for path, per in tex_inventory(target)
+               if per in known_old and str(path.resolve()) not in planned_paths]
+    if orphans:
+        print(c('注意：下面这些 texcoord 看着是旧格式，但没被处理，工具不会动：', Style.YELLOW))
+        for path, per in orphans:
+            print('  - "{}"   每顶点 {} 字节'.format(path, per))
+            who = dump_strides.get(per)
+            if who:
+                print('      dump 里有 {} 的 {} 字节旧格式，但 mod 的 ini 里 hash 对不上 ——'
+                      ' 先跑一遍版本修复工具把 hash 更新到最新。'.format('、'.join(sorted(who)), per))
+        print('  两种原因：① mod 的 ini 里 hash 还是旧的（先跑版本修复工具）')
+        print('            ② 这个网格作者还没提供 dump —— 反馈给作者补一份就行')
+        print()
+
+    if not vgx_items and not tex_items:
+        print(c('没有需要处理的文件。', Style.YELLOW))
+        return
+
+    summary = '将修改：VGX 骨骼索引 {} 个 buf、顶点格式 {} 个 buf（改前都会备份）'.format(
+        len(vgx_items), len(tex_items))
+    print(c('不要对不需要修复的 mod 运行本工具!!!', Style.RED))
+    print(c('不要在同一个 buf 上运行两次!!!', Style.RED))
+    if not iv_asker().confirm(summary):
+        print(c('已取消，没有改动任何文件。', Style.YELLOW))
+        return
+
+    total = len(vgx_items) + len(tex_items)
+    print()
+    if vgx_items:
+        print('应用 VGX 重映射中...')
+        vgx_apply(vgx_items, total, 0)
+    if tex_items:
+        print('应用格式重排中...')
+        tex_apply(tex_items, total, len(vgx_items))
+
+    print()
+    print(c('完成!', Style.GREEN))
+    print('备份后缀: {} / {}'.format(VGX_BACKUP_SUFFIX, TEX_BACKUP_SUFFIX))
+
+
+# ==========================================================================
+#  五、界面
+# ==========================================================================
+
+def ask(prompt=''):
+    """读一行输入。非交互运行（stdin 到头）时当空输入，不让它抛异常"""
+    try:
+        return input(prompt)
+    except EOFError:
+        return ''
+    except KeyboardInterrupt:
+        print()
+        return ''
+
+
+def clean_path(raw):
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in '"\'':
+        raw = raw[1:-1]
+    return raw.strip()
+
+
+def is_dump_folder(folder: Path) -> bool:
+    """有 json、没有 ini -> 当成 dump 文件夹"""
+    if not folder.is_dir():
+        return False
+    return any(True for _ in folder.rglob('*.json')) and not any(True for _ in folder.rglob('*.ini'))
+
+
+def take_dump_folder(folder: Path) -> bool:
+    """是 dump 文件夹就读进来并返回 True"""
+    if not is_dump_folder(folder):
+        return False
+    added, total, names = load_dump_into_session(folder)
+    print(c('  识别为 dump 文件夹：读到 {} 个网格（新增 {}）'.format(total, added), Style.GREEN))
+    print('  之后拖 mod 文件夹进来，贴图格式和骨骼索引都会自己对照，不用手填表。')
+    if names:
+        print('  刚读进来的角色：{}'.format('、'.join(names)))
+        print('  想只用一个角色，输 {} 重选参照。'.format(c('c', Style.GREEN)))
+    print()
+    return True
+
+
+def ask_action(target: Path):
+    """拖进来之后让用户选：修复 / 还原 / 跳过 / 退出"""
+    print('  目标: {}'.format(target))
+    while True:
+        print('  {} = 修复     {} = 还原     回车 = 跳过     {} = 退出'.format(
+            c('1', Style.GREEN), c('2', Style.GREEN), c('q', Style.GRAY)))
+        try:
+            choice = input(c('  选择: ', Style.CYAN)).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 'quit'
+
+        if choice == '':
+            return None
+        if choice in ('1', '修复', 'apply', 'fix'):
+            return 'apply'
+        if choice in ('2', '还原', 'restore', 'undo'):
+            return 'restore'
+        if choice in EXIT_WORDS:
+            return 'quit'
+        print(c('  请输入 1 / 2 / 回车 / q', Style.YELLOW))
+
+
+def run_once(action, target: Path):
+    if action == 'restore':
+        restore(target)
+    else:
+        apply_fix(target)
+
+
+def iv_drag_drop_loop():
+    """跑完不退出，把 mod 文件夹拖进窗口就能接着处理下一个"""
+    print()
+    if DUMP_MESHES:
+        print('这次生效的参照：{}'.format(c(describe_active_dumps(), Style.GREEN)))
+    print(c('  注意：一次只拖一个角色 mod 的文件夹（它自己的 ini 和 Buffer）。', Style.RED))
+    print(c('        不要把整个 Mods 目录拖进来 —— 会扫到别的角色的 mod。', Style.RED))
+    print()
+    print(c('=' * 62, Style.GRAY))
+    print('把 mod 文件夹拖到本窗口（或直接粘贴路径），按 Enter')
+    print('然后再选要做什么')
+    if ALL_DUMPS:
+        print('  输入 {}{}{} 换角色（重选参照）'.format(Style.GREEN, 'c', Style.RESET))
+    print('  输入 {}{}{} 退出'.format(Style.GREEN, 'q', Style.RESET))
+    print(c('=' * 62, Style.GRAY))
+    print()
+
+    while True:
+        try:
+            raw = input(c('拖放文件夹: ', Style.CYAN)).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+
+        if not raw:
+            continue
+        if raw.lower() in EXIT_WORDS:
+            print('退出。')
+            break
+        # 换角色：重新选参照
+        if raw.lower() in ('c', 'juese', 'role', '角色', '换角色'):
+            if ALL_DUMPS:
+                choose_character()
+                print('当前参照：{}'.format(describe_active_dumps()))
+                print()
+            else:
+                print(c('  dump\\ 里还没有 dump。', Style.YELLOW))
+            continue
+
+        # 一次拖多个文件夹时，控制台会把所有路径拼成一行（含空格的路径带引号）
+        try:
+            tokens = shlex.split(raw, posix=False)
+        except ValueError:
+            tokens = [raw]
+
+        for token in tokens:
+            path = clean_path(token)
+            if not path:
+                continue
+            item = Path(path)
+            if not item.exists():
+                print(c('找不到: {}'.format(path), Style.RED))
+                continue
+
+            target = item.resolve() if item.is_dir() else item.resolve().parent
+
+            # 拖进来的是 dump 文件夹（有 json、没 ini）-> 读进来存着，不修
+            if take_dump_folder(target):
+                continue
+
+            action = ask_action(target)
+            if action == 'quit':
+                return
+            if not action:
+                continue
+
+            print(c('-' * 62, Style.GRAY))
+            run_once(action, target)
+            print(c('-' * 62, Style.GRAY))
+            print()
+
+
+def iv_main():
+    argv = sys.argv[1:]
+    action = 'apply'
+    for arg in argv:
+        if arg.lower() in ('apply', 'restore'):
+            action = arg.lower()
+            break
+    paths = [arg for arg in argv if arg.lower() not in ('apply', 'restore')]
+
+    print(c('索引与顶点修复工具  ·  VGX 骨骼索引 + texcoord 顶点格式', Style.CYAN))
+    print()
+
+    ensure_dump_dir()
+    refresh_dumps()
+
+    if paths:
+        set_active_dumps(None)          # 命令行调用不提问，有多少用多少
+    elif ALL_DUMPS:
+        choose_character()              # 先选修哪个角色，再拖 mod
+
+    if DUMP_MESHES:
+        print('这次生效的参照：{}'.format(describe_active_dumps()))
+        print('（这些网格不用填表，拖 mod 进来直接修）')
+        print()
+
+    if paths:
+        for raw in paths:
+            item = Path(clean_path(raw))
+            if not item.exists():
+                print(c('找不到: {}'.format(raw), Style.RED))
+                continue
+            target = item.resolve() if item.is_dir() else item.resolve().parent
+            if take_dump_folder(target):
+                continue
+            run_once(action, target)
+    else:
+        print('（没给路径，进入拖放模式）')
+
+    iv_drag_drop_loop()
+
+
 # =====================================================================
 # 主界面
 # =====================================================================
@@ -11008,6 +13157,106 @@ class _LogNotebook:
                 w.place_forget()
 
 
+class IvGuiAsker:
+    """索引与顶点修复在 GUI 里的提问器（由工作线程调用）。
+
+    弹窗只能主线程做，所以这里把"要问的话"塞进消息队列，
+    主线程 poll_queue 里弹完对话框再把答案递回来 —— 工作线程原地等结果，
+    提问的行为与原命令行版本一一对应（选表/选 dump、要不要、写前确认）。
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    def _ask(self, fn, default=None):
+        """把 fn 甩给主线程执行并等它返回；主线程收不了尾时按 default 兜底"""
+        box = {}
+        ev = threading.Event()
+        try:
+            self.app.q.put(('iv_ask', fn, box, ev))
+        except Exception:
+            return default
+        deadline = time.time() + 600.0
+        while not ev.wait(0.2):
+            if getattr(self.app, '_closed', False) or time.time() > deadline:
+                return default
+        return box.get('r', default)
+
+    def _note(self, text):
+        try:
+            self.app.q.put(('out', text if text.endswith(NL) else text + NL))
+        except Exception:
+            pass
+
+    def source_choice(self, kind, detail, count, prefer_dump):
+        """表 / dump 撞车：返回 'table' 或 'dump'"""
+        many = '' if count == 1 else ' {} 个'.format(count)
+        if kind == 'vgx':
+            msg = ('表里和 dump 里都能修{}这个网格：{}\n\n用哪个的数据修？\n\n'
+                   '· 用表里的：人手填过，可控（推荐）\n'
+                   '· 用 dump 自动推的：按位置配对投票推出来，票数少的条目可能配错顶点'
+                   ).format(many, detail)
+            value = self._ask(
+                lambda: self.app._dialog_choice('VGX 数据来源', msg,
+                                                [('用表里的（推荐）', 'table'),
+                                                 ('用 dump 自动推的', 'dump')], 'table'),
+                'table')
+            self._note('  -> {}'.format('用 dump 推出来的映射' if value == 'dump' else '用表里的映射'))
+            return 'dump' if value == 'dump' else 'table'
+        msg = ('表里和 dump 里都能修{}这个网格：{}\n\n这次用哪边的数据修？\n\n'
+               '· 表里的{}\n· dump 里的{}\n\n（两边格式不一样的明细在完整日志里）'
+               ).format(many, detail,
+                        '（推荐，人手填过）' if not prefer_dump else '',
+                        '（推荐，游戏当前状态）' if prefer_dump else '')
+        value = self._ask(
+            lambda: self.app._dialog_choice('texcoord 数据来源', msg,
+                                            [('用表里的', 'table'), ('用 dump 里的', 'dump')],
+                                            'dump' if prefer_dump else 'table'),
+            'dump' if prefer_dump else 'table')
+        return 'dump' if value == 'dump' else 'table'
+
+    def auto_vgx_choice(self, paths):
+        """表里没有、dump 能推：返回 True = 用 dump 推的修"""
+        shown = paths[:12]
+        msg = ('表里没有这些网格的条目，但 dump 能自动推：\n\n{}{}\n\n'
+               '要不要用 dump 推出来的映射来修？').format(
+            '\n'.join('· ' + p for p in shown),
+            '\n…（共 {} 个，详见日志）'.format(len(paths)) if len(paths) > len(shown) else '')
+        return bool(self._ask(
+            lambda: self.app._dialog_choice('用 dump 自动推的映射修？', msg,
+                                            [('要', True), ('不要，这次不动它', False)], True),
+            True))
+
+    def confirm(self, summary):
+        """写文件前的总确认：返回 True = 动手"""
+        msg = ('即将写入（每个文件改前都会自动备份）：\n\n{}\n\n'
+               '· 不要对不需要修复的 mod 运行本工具\n'
+               '· 不要在同一个 buf 上运行两次').format(summary)
+        return bool(self._ask(
+            lambda: self.app._dialog_choice('确认修复', msg,
+                                            [('确认修复', True), ('取消', False)], False),
+            False))
+
+    def confirm_restore(self, lines):
+        """还原确认：返回 True = 动手"""
+        shown = lines[:14]
+        text = '\n'.join(shown)
+        if len(lines) > len(shown):
+            text += '\n…（共 {} 项，详见日志）'.format(len(lines) - 1)
+        msg = '{}\n\n按备份退回这些文件？'.format(text)
+        return bool(self._ask(
+            lambda: self.app._dialog_choice('确认还原', msg,
+                                            [('确认还原', True), ('取消', False)], False),
+            False))
+
+    def progress(self, done, total, text):
+        """写文件进度：主线程刷进度条"""
+        try:
+            self.app.q.put(('iv_prog', done, total, text))
+        except Exception:
+            pass
+
+
 class App:
     def __init__(self, root, initial_paths=None):
         self.root = root
@@ -11020,6 +13269,7 @@ class App:
         self._pend_ok = deque()
         self._force_tag = None
         self._part = ''
+        self._closed = False        # 关窗标记：等待对话框的工作线程据此提前收手
         self.drop_engine = None
         self._real_stdout, self._real_stderr = sys.stdout, sys.stderr
         sys.stdout = TextRedirector(self.q)
@@ -11064,6 +13314,7 @@ class App:
         self._upd_info = None           # 待处理新版的信息（按钮点击时直接用，免重新查）
         self._upd_flash = False         # 按钮闪烁相位
         _cleanup_stale_old()            # 清理上次更新残留
+        ensure_dump_dir()               # dump 正式位置在程序目录：启动就摆好，不等切到索引标签
         code = _read_update_fail_marker()
         if code:
             # 上次全自动更新失败：提示一次并删标记（zip 仍留在程序目录可手动解压）
@@ -11149,6 +13400,12 @@ class App:
             st = ttk.Style(self.root)
             st.configure('TProgressbar', troughcolor=p['CARD2'],
                          bordercolor=p['CARD2'])
+            st.configure('Iv.TCombobox', fieldbackground=p['CARD2'],
+                         background=p['CARD2'], foreground=p['TEXT'],
+                         arrowcolor=p['TEXT'], bordercolor=p['LINE'],
+                         lightcolor=p['CARD2'], darkcolor=p['CARD2'])
+            self.root.option_add('*TCombobox*Listbox.background', p['CARD2'])
+            self.root.option_add('*TCombobox*Listbox.foreground', p['TEXT'])
             try:
                 st.configure('TNotebook', background=p['BG'], borderwidth=0)
                 st.configure('TNotebook.Tab', background=p['CARD'],
@@ -11169,6 +13426,10 @@ class App:
             self._tabbar_sync()
         except Exception:
             pass
+        try:
+            self._rail_sync()
+        except Exception:
+            pass
 
     def toggle_theme(self):
         name = 'light' if self.theme == 'dark' else 'dark'
@@ -11185,12 +13446,22 @@ class App:
         st.configure('TProgressbar', background=ACCENT, troughcolor=CARD2,
                      bordercolor=CARD2, lightcolor=ACCENT, darkcolor=ACCENT,
                      thickness=10)
+        # 角色下拉：配色跟着主题走（apply_theme 里会重刷）
+        try:
+            st.configure('Iv.TCombobox', fieldbackground=CARD2, background=CARD2,
+                         foreground=TEXT, arrowcolor=TEXT, bordercolor=LINE,
+                         lightcolor=CARD2, darkcolor=CARD2, padding=2)
+            self.root.option_add('*TCombobox*Listbox.background', CARD2)
+            self.root.option_add('*TCombobox*Listbox.foreground', TEXT)
+            self.root.option_add('*TCombobox*Listbox.selectBackground', ACCENT)
+        except Exception:
+            pass
 
     def _build_ui(self):
         root = self.root
         root.title('绝区零 Mod 修复工具 {}'.format(APP_VERSION))
-        root.geometry('980x660')
-        root.minsize(720, 540)
+        root.geometry('1080x740')       # 左侧多了修复工具标签栏，宽高各留一点
+        root.minsize(900, 620)
 
         # ---- 标题 ----
         header = tk.Frame(root, bg=CARD)
@@ -11218,8 +13489,39 @@ class App:
                                     highlightthickness=0)
         self.btn_update.pack(side='right', padx=(0, 8), pady=6)
 
+        # ---- 主体：左侧修复工具标签栏 + 右侧内容区 ----
+        # 标签栏竖着贴在日志窗口左边：版本Hash修复（主工具）/ 索引与顶点修复。
+        # 日志窗口两个标签共用，切换标签只换工作区，日志、进度、状态都不动。
+        body = tk.Frame(root, bg=BG)
+        body.pack(fill='both', expand=True)
+        self.rail = tk.Frame(body, bg=BG, width=116)
+        self.rail.pack(side='left', fill='y', padx=(12, 0), pady=(10, 8))
+        self.rail.pack_propagate(False)
+        tk.Label(self.rail, text='修复工具', bg=BG, fg=DIM,
+                 font=(FONT, 8)).pack(anchor='w', padx=4)
+        self._rail_btns = []      # [(按钮, 模式名)]
+        for mode, text, caption in (('hash', '版本Hash\n修复', '主修复工具'),
+                                    ('iv', '索引与顶点\n修复', '')):
+            b = tk.Button(self.rail, text=text, relief='flat', cursor='hand2',
+                          anchor='w', justify='left',
+                          font=(FONT, 10, 'bold'), padx=10, pady=9,
+                          highlightthickness=0, bg=CARD, fg=TEXT,
+                          activebackground=CARD2, activeforeground=TEXT,
+                          command=lambda m=mode: self._switch_mode(m))
+            b.pack(fill='x', pady=(6, 0))
+            self._rail_btns.append((b, mode))
+            if caption:
+                tk.Label(self.rail, text=caption, bg=BG, fg=DIM,
+                         font=(FONT, 8)).pack(anchor='w', padx=12)
+        self._mode = 'hash'       # 版本Hash修复为主修复工具，默认停在这一页
+        right = tk.Frame(body, bg=BG)
+        right.pack(side='left', fill='both', expand=True)
+        self.page_hash = tk.Frame(right, bg=BG)
+        self.page_hash.pack(fill='x')
+        self.page_iv = tk.Frame(right, bg=BG)      # 切到“索引与顶点修复”才 pack
+
         # ---- 路径卡片 ----
-        card = tk.Frame(root, bg=CARD)
+        card = tk.Frame(self.page_hash, bg=CARD)
         card.pack(fill='x', padx=12, pady=(10, 0))
         for c in range(4):
             card.columnconfigure(c, weight=1 if c == 1 else 0)
@@ -11257,23 +13559,29 @@ class App:
                  bg=CARD, fg=DIM, font=(FONT, 8), justify='left').grid(
             row=3, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
 
-        # ---- 日志（单窗页签：点击页签切换 已更新 / 完整 内容） ----
-        lbar = tk.Frame(root, bg=BG)
+        # ---- 日志（单窗页签：点击页签切换 已更新 / 完整 内容；两个工具共用） ----
+        lbar = tk.Frame(right, bg=BG)
         lbar.pack(fill='x', padx=18, pady=(10, 0))
+        self._lbar = lbar
         self._mini_btn(lbar, '清空当前日志', self.clear_current_log).pack(side='right', padx=(0, 4))
         tk.Checkbutton(lbar, text='自动滚动', variable=self.auto_scroll, bg=BG,
                        fg=DIM, activebackground=BG, activeforeground=TEXT,
                        selectcolor=CARD2, font=(FONT, 8),
                        highlightthickness=0).pack(side='right')
         # ---- 日志页签组（自绘）：左=运行（完整/已更新），右=文档（版本更新/Hash变动），互不相连 ----
-        tabbar = tk.Frame(root, bg=BG)
+        tabbar = tk.Frame(right, bg=BG)
         tabbar.pack(fill='x', padx=12, pady=(6, 0))
+        # 运行页签分两组：版本Hash修复用（完整/已更新），索引与顶点修复自己一组（只有完整日志）
         run_grp = tk.Frame(tabbar, bg=BG)
         run_grp.pack(side='left')
+        self._run_grp_hash = run_grp
+        self._run_grp_iv = tk.Frame(tabbar, bg=BG)   # 切到索引那个标签才 pack
         doc_grp = tk.Frame(tabbar, bg=BG)
         doc_grp.pack(side='right')
+        self._doc_grp_hash = doc_grp                    # 程序文档页（两个文档）
+        self._doc_grp_iv = tk.Frame(tabbar, bg=BG)      # 索引工具的文档页（只有使用说明）
         # 手工叠页容器（无系统页签条），页面由上方两组按钮切换
-        nb_host = tk.Frame(root, bg=CARD2, highlightthickness=1,
+        nb_host = tk.Frame(right, bg=CARD2, highlightthickness=1,
                            highlightbackground=LINE)
         nb_host.pack(fill='both', expand=True, padx=12, pady=(6, 8))
         nb = _LogNotebook(nb_host)
@@ -11339,11 +13647,27 @@ class App:
         self.log_hash.insert('1.0', _doc_text('Hash变动日志.txt', HASHLOG_TEXT))
         self.log_hash.configure(state='disabled')
         nb.add(f_hash, text='   Hash变动日志  ')
+        # 页5：索引与顶点修复的使用说明（同目录 txt 优先，无则用内嵌文本）
+        f_iv_help = tk.Frame(nb_host, bg=CARD2)
+        self.log_iv_help = tk.Text(f_iv_help, bg=CARD2, fg=TEXT, relief='flat',
+                                   highlightthickness=1, highlightbackground=LINE,
+                                   font=('Consolas', 9), wrap='word', state='disabled',
+                                   padx=10, pady=6, height=6)
+        ivh_sb = tk.Scrollbar(f_iv_help, orient='vertical', command=self.log_iv_help.yview)
+        self.log_iv_help.configure(yscrollcommand=ivh_sb.set)
+        ivh_sb.pack(side='right', fill='y')
+        self.log_iv_help.pack(side='left', fill='both', expand=True)
+        self.log_iv_help.configure(state='normal')
+        self.log_iv_help.insert('1.0', _doc_text('索引与顶点修复使用说明.txt', IV_HELP_TEXT))
+        self.log_iv_help.configure(state='disabled')
+        nb.add(f_iv_help, text='   使用说明  ')
         self.nb = nb
-        # ---- 自绘页签按钮：左组=运行页（完整/已更新），右组=文档页（版本更新/Hash变动） ----
+        # ---- 自绘页签按钮：运行页（两组，按工具分）+ 文档页（两组，按工具分） ----
         self._page_btns = []   # (按钮, nb 页 text)
         for grp, label in ((run_grp, '完整日志'), (run_grp, '已更新日志'),
-                           (doc_grp, '版本更新日志'), (doc_grp, 'Hash变动日志')):
+                           (self._run_grp_iv, '完整日志'),
+                           (doc_grp, '版本更新日志'), (doc_grp, 'Hash变动日志'),
+                           (self._doc_grp_iv, '使用说明')):
             b = tk.Button(grp, text=label, relief='flat', cursor='hand2',
                           font=(FONT, 9), padx=12, pady=4, highlightthickness=0,
                           bg=CARD, fg=TEXT, activebackground=CARD2, activeforeground=TEXT)
@@ -11356,8 +13680,8 @@ class App:
         self._tab_ok = next((t for t in nb.tabs()
                              if '已更新' in nb.tab(t, 'text')), nb.tabs()[0])
 
-        # ---- 底部 ----
-        bottom = tk.Frame(root, bg=CARD)
+        # ---- 底部（两个工具共用：进度条 + 状态行；按钮行按标签切换） ----
+        bottom = tk.Frame(right, bg=CARD)
         bottom.pack(fill='x', padx=12, pady=(0, 12))
         tr = tk.Frame(bottom, bg=CARD)
         tr.pack(fill='x', padx=14, pady=(6, 2))
@@ -11370,22 +13694,439 @@ class App:
         self.file_label = tk.Label(bottom, text='就绪。填入路径后点击“开始修复”。', bg=CARD,
                                    fg=DIM, font=(FONT, 9), anchor='w', justify='left')
         self.file_label.pack(fill='x', padx=14, pady=(1, 0))
-        # 按钮行：右侧只放按钮
+        # 按钮行：右侧只放按钮；两条按标签切换
         ar = tk.Frame(bottom, bg=CARD)
         ar.pack(fill='x', padx=14, pady=(3, 8))
-        self.btn_run = self._btn(ar, '▶ 开始修复', self.start_repair, accent=True)
+        self._bar_hash = tk.Frame(ar, bg=CARD)
+        self._bar_hash.pack(fill='x')
+        self._bar_iv = tk.Frame(ar, bg=CARD)
+        self.btn_run = self._btn(self._bar_hash, '▶ 开始修复', self.start_repair, accent=True)
         self.btn_run.pack(side='right')
         # 链接按钮：mod指南 / 更多修复工具（网址见文件顶部 URL_MOD_GUIDE / URL_MORE_TOOLS）
-        b1 = self._btn(ar, 'Mod 指南', lambda: self._open_url(URL_MOD_GUIDE))
+        b1 = self._btn(self._bar_hash, 'Mod 指南', lambda: self._open_url(URL_MOD_GUIDE))
         b1.pack(side='left', padx=(0, 6))
-        b2 = self._btn(ar, '更多修复工具', lambda: self._open_url(URL_MORE_TOOLS))
+        b2 = self._btn(self._bar_hash, '更多修复工具', lambda: self._open_url(URL_MORE_TOOLS))
         b2.pack(side='left')
+        # 索引与顶点修复的按钮（改了才写、写前必弹确认，见 IvGuiAsker）
+        self.btn_iv_run = self._btn(self._bar_iv, '▶ 开始修复', lambda: self._iv_start('apply'),
+                                    accent=True)
+        self.btn_iv_run.pack(side='right')
+        self.btn_iv_restore = self._btn(self._bar_iv, '↩ 还原', lambda: self._iv_start('restore'))
+        self.btn_iv_restore.pack(side='right', padx=(0, 8))
         # 窗口变宽/变窄时给两行状态文字设自动换行宽度
         def _wrap(ev=None):
             w = bottom.winfo_width() - 28
             if w > 60:
                 self.file_label.config(wraplength=w)
         bottom.bind('<Configure>', _wrap)
+
+        # ---- 索引与顶点修复的独立面板（路径/dump/角色/说明，切到该标签才显示） ----
+        self._build_iv_panel(self.page_iv)
+
+    # ---------------- 索引与顶点修复：独立面板 ----------------
+    def _build_iv_panel(self, host):
+        """索引与顶点修复的独立面板：自己的路径栏、dump 参照、角色选择。
+        日志窗口、进度条、状态行与版本Hash修复共用。"""
+        card = tk.Frame(host, bg=CARD)
+        card.pack(fill='x', padx=12, pady=(10, 0))
+        card.columnconfigure(1, weight=1)
+        tk.Label(card, text='修复目标路径', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
+            row=0, column=0, padx=(14, 8), pady=(8, 3), sticky='w')
+        self.iv_entry = self._entry(card)
+        self.iv_entry.grid(row=0, column=1, pady=(8, 3), sticky='ew')
+        self.iv_pick = self._btn(card, '选择路径', self.pick_iv)
+        self.iv_pick.grid(row=0, column=2, padx=(8, 4), pady=(8, 3))
+        self.iv_clear = self._btn(card, '清空', self.clear_iv)
+        self.iv_clear.grid(row=0, column=3, padx=(0, 14), pady=(8, 3))
+        tk.Label(card, text='只填一个 mod 的文件夹（它自己的 ini 和 Buffer）；一次只修一个，'
+                            '也可以直接把文件夹拖进窗口。',
+                 bg=CARD, fg=DIM, font=(FONT, 8), justify='left').grid(
+            row=1, column=0, columnspan=4, padx=14, pady=(0, 3), sticky='w')
+        tk.Label(card, text='dump 参照', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
+            row=2, column=0, padx=(14, 8), pady=(3, 3), sticky='w')
+        self.iv_dump_label = tk.Label(card, text='', bg=CARD2, fg=TEXT, font=(FONT, 8),
+                                      anchor='w', justify='left', padx=8, pady=3)
+        self.iv_dump_label.grid(row=2, column=1, pady=(3, 3), sticky='ew')
+        self.iv_dump_pick = self._btn(card, '选择 dump 文件夹', self.pick_iv_dump)
+        self.iv_dump_pick.grid(row=2, column=2, padx=(8, 4), pady=(3, 3))
+        self.iv_dump_reload = self._btn(card, '重新读取', self.iv_reload_dumps)
+        self.iv_dump_reload.grid(row=2, column=3, padx=(0, 14), pady=(3, 3))
+        tk.Label(card, text='角色参照', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
+            row=3, column=0, padx=(14, 8), pady=(3, 4), sticky='w')
+        self.iv_char = ttk.Combobox(card, state='readonly', font=(FONT, 9),
+                                    style='Iv.TCombobox', values=[])
+        self.iv_char.grid(row=3, column=1, pady=(3, 4), sticky='ew')
+        self.iv_char.bind('<<ComboboxSelected>>', self._iv_char_changed)
+        self.iv_char_hint = tk.Label(card, text='', bg=CARD, fg=DIM, font=(FONT, 8),
+                                     justify='left', anchor='w')
+        self.iv_char_hint.grid(row=3, column=2, columnspan=2, padx=(8, 14),
+                               pady=(3, 4), sticky='ew')
+        tk.Label(card, text='注意：一次只处理一个角色 mod 的文件夹，别把整个 Mods 目录拖进来；'
+                            '同一个 buf 不要修两次；ini 里的 hash 要先跑「版本Hash修复」更新到最新；'
+                            '角色参照卡的是 hash：mod 里的 hash 命中本次参照的任意一个才算同角色，'
+                            '选错角色整包不处理。',
+                 bg=CARD, fg=WARN, font=(FONT, 8), justify='left', wraplength=760).grid(
+            row=4, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
+        self.iv_entry.bind('<Return>', lambda e: self._iv_start('apply'))
+        self.iv_pending_dumps = []      # 本次跑动中拖进来的 dump，跑完统一登记
+        self._iv_inited = False
+
+    def _switch_mode(self, mode):
+        """切换左侧标签：版本Hash修复（主工具）/ 索引与顶点修复。
+        只换工作区，日志窗口共用不换。每次点按钮都把它自己的日志页带出来：
+        版本工具 = 完整日志，索引工具 = 使用说明。"""
+        if mode == self._mode:
+            # 已经在这个工具里：按钮再点一下 = 回到它自己的日志页
+            self._goto_log_page('完整日志' if mode == 'hash' else '使用说明')
+            return
+        if self.running:
+            messagebox.showinfo('提示', '正在处理中，请等这次跑完再切换工具。', parent=self.root)
+            return
+        self._mode = mode
+        if mode == 'iv':
+            self.page_hash.pack_forget()
+            self.page_iv.pack(fill='x', before=self._lbar)
+            self._bar_hash.pack_forget()
+            self._bar_iv.pack(fill='x')
+            # 换成本工具自己的日志页签：完整日志 + 使用说明（程序文档页藏起来）
+            self._run_grp_hash.pack_forget()
+            self._run_grp_iv.pack(side='left')
+            self._doc_grp_hash.pack_forget()
+            self._doc_grp_iv.pack(side='right')
+            self._iv_init_once()
+            self._log('已切到「索引与顶点修复」：骨骼索引（VGX）+ 顶点格式（texcoord）。', 'accent')
+        else:
+            self.page_iv.pack_forget()
+            self.page_hash.pack(fill='x', before=self._lbar)
+            self._bar_iv.pack_forget()
+            self._bar_hash.pack(fill='x')
+            self._run_grp_iv.pack_forget()
+            self._run_grp_hash.pack(side='left')
+            self._doc_grp_iv.pack_forget()
+            self._doc_grp_hash.pack(side='right')
+            self._log('已切到「版本Hash修复」：批量更新旧版 ini 的 hash 与缓冲区。', 'accent')
+        self._rail_sync()
+        # 点哪个工具就把它自己的日志页带出来：版本工具 = 完整日志，索引工具 = 使用说明
+        self._goto_log_page('完整日志' if mode == 'hash' else '使用说明')
+
+    def _rail_sync(self):
+        """左侧标签高亮：选中态 夜=霓虹黄黑字 / 昼=蓝底白字"""
+        try:
+            p = THEMES.get(getattr(self, 'theme', None) or 'dark', THEMES['dark'])
+            on_bg, on_fg = ((ACCENT, '#191c22') if p is THEMES['dark']
+                            else ('#1976d2', '#ffffff'))
+            for b, mode in getattr(self, '_rail_btns', []):
+                on = (mode == self._mode)
+                b.configure(bg=on_bg if on else p['BTN'], fg=on_fg if on else p['TEXT'],
+                            activebackground=p['BTN_H'])
+        except Exception:
+            pass
+
+    def pick_iv(self):
+        d = filedialog.askdirectory(parent=self.root, title='选择要修复的 mod 文件夹（索引与顶点修复）')
+        if d:
+            self._iv_set_path(os.path.abspath(d))
+
+    def _iv_set_path(self, path):
+        """目标路径栏只放一个：新选的顶掉旧的（索引修复一次只修一个 mod）"""
+        self.iv_entry.delete(0, 'end')
+        self.iv_entry.insert(0, clean_gui_path(path) or path)
+        self._log('修复目标: {}'.format(self.iv_entry.get()), 'accent')
+        self._show_full_log()
+
+    def clear_iv(self):
+        self.iv_entry.delete(0, 'end')
+        self._log('已清空索引与顶点修复的目标路径', 'gray')
+        self._show_full_log()
+
+    def pick_iv_dump(self):
+        d = filedialog.askdirectory(parent=self.root,
+                                    title='选择 dump 文件夹（游戏内 F8 抓的 Frame Analysis 数据）')
+        if d:
+            self._iv_add_dump_dir(d)
+
+    def _iv_entry_tokens(self):
+        """目标栏拆出来的原始条目（理论上只有一个；多的要挡掉，不能偷偷只修一个）"""
+        out = []
+        for t in re.split(r'[;；\n]', self.iv_entry.get() or ''):
+            t = t.strip()
+            if not t:
+                continue
+            clean = clean_gui_path(t)
+            if clean:
+                out.append(clean)
+        return out
+
+    # ---- dump 参照 ----
+    def _iv_init_once(self):
+        """第一次切到该标签：建 dump 目录、读配置里的额外 dump、刷新角色下拉"""
+        if self._iv_inited:
+            return
+        self._iv_inited = True
+        cfg = _load_config()
+        dirs = [d for d in (cfg.get('iv_dump_dirs') or [])
+                if isinstance(d, str) and os.path.isdir(d)]
+        DUMP_DIRS[:] = dirs
+        ensure_dump_dir()
+        refresh_dumps()
+        self._iv_refresh_characters(keep=False)
+        self._log('dump 参照：{}'.format(describe_active_dumps()), 'gray')
+
+    def iv_reload_dumps(self):
+        """重新扫一遍所有 dump 目录（程序目录的 dump\\、配置里的、拖进来的）"""
+        refresh_dumps()
+        self._iv_refresh_characters(keep=True)
+        self._log('已重新读取 dump：{}'.format(describe_active_dumps()), 'accent')
+        self._show_full_log()
+
+    def _iv_add_dump_dir(self, folder):
+        """选/拖进来的 dump 文件夹：读进本次会话并记住路径"""
+        p = Path(os.path.abspath(folder))
+        if not is_dump_folder(p):
+            self._log('这个文件夹不像 dump（要有 .json、没有 .ini）：{}'.format(p), 'warn')
+            self._show_full_log()
+            return
+        added, total, names = load_dump_into_session(p)
+        tail = '，角色：{}'.format('、'.join(names)) if names else ''
+        self._log('已读 dump 文件夹：{} 个网格（新增 {}）{}'.format(total, added, tail), 'accent')
+        self._register_dump_dir(str(p))
+        self._iv_refresh_characters(keep=False)
+        self._show_full_log()
+
+    def _register_dump_dir(self, path):
+        """把 dump 目录记进配置：下次启动直接读"""
+        if path not in DUMP_DIRS:
+            DUMP_DIRS.append(path)
+        try:
+            cfg = _load_config()
+            cfg['iv_dump_dirs'] = list(DUMP_DIRS)
+            _save_config(cfg)
+        except Exception:
+            pass
+
+    def _iv_refresh_characters(self, keep=True):
+        """重填角色下拉：dump 里有哪些角色就列哪些（只能选一个，不做跨角色匹配）"""
+        groups = character_groups()
+        names = sorted(groups)
+        cur = self.iv_char.get() if keep else ''
+        if cur not in names:
+            cur = names[0] if names else ''
+        self.iv_char.configure(values=names)
+        self.iv_char.set(cur)
+        self._iv_apply_character()
+
+    def _iv_char_changed(self, ev=None):
+        self._iv_apply_character()
+
+    def _iv_apply_character(self):
+        """按下拉选中的那个角色限定 dump 参照（没选/没 dump 就只有表能用）"""
+        sel = self.iv_char.get()
+        char = sel if sel in character_groups() else None
+        set_active_dumps(char)
+        groups = character_groups()
+        if not ALL_DUMPS:
+            hint = 'dump\\ 里还没有数据：顶点格式修不了，骨骼索引只能靠表'
+        elif char:
+            meshes = sorted({ALL_DUMPS[h].get('character') or '?' for h in groups.get(char, [])})
+            hint = '本次只用【{}】的参照 · {} 个网格：{}'.format(
+                char, len(groups.get(char, [])), '、'.join(meshes))
+        else:
+            hint = 'dump 里有 {} 个角色，请选一个（' + '、'.join(sorted(groups)) + '）'
+        self.iv_char_hint.config(text=hint)
+        roots = [str(r) for r in dump_roots() if Path(r).is_dir()]
+        shown = ' ； '.join(roots) if roots else '（没有 dump 目录）'
+        if len(shown) > 96:
+            shown = shown[:46] + ' … ' + shown[-44:]
+        self.iv_dump_label.config(text='{} ｜ 已读 {} 个网格'.format(shown, len(ALL_DUMPS)))
+
+    # ---- 跑修复 / 还原 ----
+    def _iv_prerun_dialog(self, target):
+        """开修前的提醒：① 先跑「版本Hash修复」把 hash 更新到最新 ② 注意事项。
+        每次点“开始修复”都弹一次（不做“不再提醒”）。返回 True = 照修"""
+        name = os.path.basename(str(target).rstrip(chr(47) + chr(92))) or str(target)
+        msg = ('要修的 mod：{name}\n'
+               '本次参照：{ref}\n\n'
+               '① 先跑「版本Hash修复」\n'
+               '   本工具是按 ini 里的 hash 找网格的。ini 里的 hash 还是旧版本值时，\n'
+               '   可能一个都对不上 —— 会被当成“不是这个角色”整包挡下来，白跑一趟。\n'
+               '   没跑过就先切到左边的「版本Hash修复」把 hash 更新到最新，再回来修。\n\n'
+               '② 注意事项\n'
+               '   · 一次只处理一个角色 mod 的文件夹，别把整个 Mods 目录拖进来\n'
+               '   · 同一个 buf 不要修两次（有备份 / 标记的会自动跳过）\n'
+               '   · 角色参照要选对：mod 里的 hash 命中本次参照才算同一个角色\n'
+               '   · 每个文件改前都会自动备份，改错了点「↩ 还原」退回\n\n'
+               '确定现在开始修吗？').format(name=name, ref=describe_active_dumps() or '（没有 dump）')
+        return bool(self._dialog_choice('开修前先看一眼', msg,
+                                        [('开始修复', True), ('先不修', False)], False))
+
+    def _iv_start(self, action):
+        if getattr(self, '_updating', False):
+            messagebox.showinfo('提示', '正在检查/下载更新，请稍候再开始。', parent=self.root)
+            return
+        if self.running:
+            self.cancel_event.set()
+            self.chip.config(text='正在停止…', bg=THEMES[self.theme]['STAT_WARN'], fg='#191c22')
+            self._chip_mode = 'warn'
+            self.btn_iv_run.config(state='disabled')
+            return
+        tokens = self._iv_entry_tokens()
+        if not tokens:
+            messagebox.showinfo('提示', '请先填入要处理的 mod 文件夹（可拖入窗口，或点“选择路径”）。'
+                                        '一次只修一个，不要填整个 Mods 目录。',
+                                parent=self.root)
+            return
+        if len(tokens) > 1:
+            messagebox.showinfo('提示', '索引与顶点修复一次只能修一个 mod，现在填了 {} 个：\n\n{}'
+                                        '\n\n请只留一个再开始。'.format(
+                                            len(tokens), '\n'.join('· ' + t for t in tokens[:6])),
+                                parent=self.root)
+            return
+        if ALL_DUMPS and self.iv_char.get() not in character_groups():
+            messagebox.showinfo('提示', '请先在“角色参照”里选这次要修的角色。\n'
+                                        '索引与顶点修复不做跨角色匹配，一次只对一个角色。',
+                                parent=self.root)
+            return
+        paths = [tokens[0]]
+        # 开修前弹一次提醒：先跑版本Hash修复 + 注意事项（每次修复都提醒）
+        if action != 'restore' and not self._iv_prerun_dialog(paths[0]):
+            self._log('已取消：开修前的提醒没有确认，没有改动任何文件。', 'gray')
+            self._show_full_log()
+            return
+        self._show_full_log()     # 开跑就把日志页带出来，过程全在完整日志里
+        self.running = True
+        self.cancel_event = threading.Event()
+        self.iv_run_action = action
+        self.iv_pending_dumps = []
+        self.btn_iv_run.config(text='■ 停止', bg=DANGER, fg='white',
+                               activebackground='#a52f23', activeforeground='white')
+        self.btn_iv_restore.config(state='disabled')
+        self._set_edit_enabled(False)
+        self.progress.configure(maximum=1, value=0)
+        self.prog_label.config(text='')
+        self.chip.config(text='还原中' if action == 'restore' else '修复中',
+                         bg=ACCENT, fg='#191c22')
+        self._chip_mode = None
+        self.file_label.config(text='', fg=DIM)
+        self._file_mode = None
+        self._log('=' * 62, 'gray')
+        self._log('索引与顶点修复 · {}：{}'.format(
+            '还原' if action == 'restore' else '修复', paths[0]), 'accent')
+        if action != 'restore':
+            self._log('本次参照：{}'.format(describe_active_dumps()), 'gray')
+        self._log('=' * 62, 'gray')
+        threading.Thread(target=self._iv_worker, args=(list(paths), action),
+                         daemon=True).start()
+
+    def _iv_worker(self, paths, action):
+        """后台线程：跑修复/还原。提问（表与 dump 冲突、写前确认）走 IvGuiAsker 弹对话框。
+        改文件的活全在索引工具里，这里只管调度与日志。"""
+        global IV_ASKER
+        prev = IV_ASKER
+        IV_ASKER = IvGuiAsker(self)
+        try:
+            for raw in paths:
+                if self.cancel_event.is_set():
+                    self.q.put(('out', '已停止（用户取消）\n'))
+                    break
+                item = Path(raw)
+                if not item.exists():
+                    self.q.put(('out', '找不到: {}\n'.format(raw)))
+                    continue
+                target = item.resolve() if item.is_dir() else item.resolve().parent
+                if take_dump_folder(target):     # 拖进来的是 dump 文件夹：读进来，不修
+                    self.iv_pending_dumps.append(str(target))
+                    continue
+                self.q.put(('out', chr(10) + '-' * 62 + chr(10)))
+                run_once(action, target)
+        except Exception as e:
+            self.q.put(('out', '发生错误: {}\n'.format(e)))
+            self.q.put(('out', traceback.format_exc()))
+        finally:
+            IV_ASKER = prev
+            self.q.put(('iv_done', action))
+
+    def _iv_finish(self, action):
+        aborted = bool(self.cancel_event and self.cancel_event.is_set())
+        self.running = False
+        self.btn_iv_run.config(text='▶ 开始修复', bg=ACCENT, fg='#191c22',
+                               activebackground='#ffcf00', activeforeground='#191c22',
+                               state='normal')
+        self.btn_iv_restore.config(state='normal')
+        self._set_edit_enabled(True)
+        self.progress.configure(maximum=100, value=0)
+        self.prog_label.config(text='')
+        # 跑动中拖进来的 dump：等这边跑完再登记 + 刷新下拉，免得动到正在用的参照
+        for path in self.iv_pending_dumps:
+            self._register_dump_dir(path)
+        if self.iv_pending_dumps:
+            self._iv_refresh_characters(keep=True)
+            self._log('已加入 {} 个 dump 文件夹参照。'.format(len(self.iv_pending_dumps)), 'accent')
+        self.iv_pending_dumps = []
+        if aborted:
+            self.chip.config(text='已停止', bg=THEMES[self.theme]['STAT_WARN'], fg='#191c22')
+            self._chip_mode = 'warn'
+            self.file_label.config(text='已停止。', fg=THEMES[self.theme]['STAT_WARN'])
+            self._file_mode = 'warn'
+        else:
+            self.chip.config(text='完成 ✔', bg=THEMES[self.theme]['STAT_OK'], fg='#101216')
+            self._chip_mode = 'ok'
+            self.file_label.config(
+                text='{}完成：改前都留有备份，想退回点“↩ 还原”。'.format(
+                    '还原' if action == 'restore' else '修复'),
+                fg=THEMES[self.theme]['STAT_OK'])
+            self._file_mode = 'ok'
+        self._log('-' * 62, 'gray')
+        self._show_full_log()
+
+    def _dialog_choice(self, title, message, options, default=None):
+        """模态选择框：options = [(按钮文字, 返回值)]。关窗口 = default。
+        只能主线程调用（IvGuiAsker 已经把它排到主线程）。"""
+        p = THEMES.get(self.theme, THEMES['dark'])
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.configure(bg=p['CARD'])
+        win.transient(self.root)
+        win.resizable(False, False)
+        tk.Label(win, text=message, bg=p['CARD'], fg=p['TEXT'], font=(FONT, 10),
+                 justify='left', anchor='w', wraplength=520).pack(
+            padx=16, pady=(14, 10), fill='x')
+        row = tk.Frame(win, bg=p['CARD'])
+        row.pack(padx=16, pady=(0, 14), anchor='e')
+        result = {'v': default}
+
+        def choose(value):
+            result['v'] = value
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            win.destroy()
+
+        for label, value in options:
+            accent = (value == options[0][1])
+            btn = tk.Button(row, text=label, relief='flat', cursor='hand2',
+                            font=(FONT, 9, 'bold') if accent else (FONT, 9),
+                            padx=14, pady=6, highlightthickness=0,
+                            bg=ACCENT if accent else p['BTN'],
+                            fg='#191c22' if accent else p['TEXT'],
+                            activebackground='#ffcf00' if accent else p['BTN_H'],
+                            activeforeground='#191c22' if accent else p['TEXT'],
+                            command=lambda v=value: choose(v))
+            btn.pack(side='left', padx=(8, 0))
+        win.protocol('WM_DELETE_WINDOW', lambda: choose(default))
+        win.bind('<Escape>', lambda e: choose(default))
+        # 居中到主窗口
+        try:
+            win.update_idletasks()
+            x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
+            y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_height()) // 3
+            win.geometry('+{}+{}'.format(max(x, 0), max(y, 0)))
+        except Exception:
+            pass
+        win.grab_set()
+        win.focus_set()
+        self.root.wait_window(win)
+        return result['v']
 
     def _open_url(self, url):
         """在默认浏览器中打开网址（放线程防卡界面）"""
@@ -11503,10 +14244,10 @@ class App:
         self._log('已清空手动修复路径', 'gray')
         self._show_full_log()
 
-    def _append_manual(self, paths):
+    def _append_paths(self, entry, paths):
         # 栏内文本是我们自己用 '; ' 拼出来的规范格式：只按分号拆，
         # 绝不用空格拆分 —— 否则含空格的目录（如 Zenless Zone Zero）会被切成碎片再拼错
-        cur = [t.strip() for t in re.split(r'[;；]', self.manual_entry.get() or '')]
+        cur = [t.strip() for t in re.split(r'[;；]', entry.get() or '')]
         parts = [t for t in cur if t]
         have = {os.path.normcase(os.path.realpath(x)) for x in parts}
         for p in paths:
@@ -11517,8 +14258,11 @@ class App:
             if key not in have:
                 parts.append(clean)
                 have.add(key)
-        self.manual_entry.delete(0, 'end')
-        self.manual_entry.insert(0, '; '.join(parts))
+        entry.delete(0, 'end')
+        entry.insert(0, '; '.join(parts))
+
+    def _append_manual(self, paths):
+        self._append_paths(self.manual_entry, paths)
         self._save_paths()
 
     def _entry_paths(self):
@@ -11560,7 +14304,21 @@ class App:
             return
         self._log('收到拖入: {}'.format(
             '、'.join(os.path.basename(p.rstrip(chr(47) + chr(92))) or p for p in paths)), 'accent')
-        self._append_manual(paths)
+        if self._mode == 'iv':
+            # 索引与顶点修复：dump 文件夹拖进来当参照读；剩下的只收一个（一次只修一个 mod）
+            targets = []
+            for p in paths:
+                if os.path.isdir(p) and is_dump_folder(Path(p)):
+                    self._iv_add_dump_dir(p)
+                else:
+                    targets.append(p)
+            if len(targets) > 1:
+                self._log('一次只修一个 mod，已只取第一个：{}（其余没加进来）'.format(
+                    os.path.basename(targets[0].rstrip(chr(47) + chr(92))) or targets[0]), 'warn')
+            if targets:
+                self._iv_set_path(targets[0])
+        else:
+            self._append_manual(paths)
 
     # ---------------- 日志（命令行式流式输出：有界队列 + 定量落屏，永不多跑一步） ----------------
     def _classify(self, line):
@@ -11658,11 +14416,17 @@ class App:
         return bool(q)
 
     def clear_current_log(self):
-        """清空当前页签日志；按页签文字路由，与页签顺序无关"""
+        """清空当前页签日志；按页签文字路由，与页签顺序无关。
+        文档页（版本更新 / Hash变动 / 使用说明）是随包资料，不清也不动运行日志"""
         try:
             if getattr(self, 'nb', None) is not None:
-                if '已更新' in self.nb.tab(self.nb.select(), 'text'):
+                cur = self.nb.tab(self.nb.select(), 'text')
+                if '已更新' in cur:
                     self.clear_log_ok()
+                    return
+                if any(k in cur for k in ('版本更新日志', 'Hash变动日志', '使用说明')):
+                    self._log('“{}”是随包资料，不参与清空；“清空当前日志”清的是运行日志。'.format(
+                        cur.strip()), 'gray')
                     return
         except Exception:
             pass
@@ -11774,6 +14538,25 @@ class App:
                         name=name[:40], c=c, n=n, f=f),
                     fg=THEMES[self.theme]['STAT_ERR'] if f else ACCENT)
                 self._file_mode = 'err' if f else 'busy'
+            elif ev[0] == "iv_ask":
+                # 索引与顶点修复在工作线程里提的问题：主线程弹对话框，再把答案递回去
+                _, fn, box, ask_ev = ev
+                try:
+                    box['r'] = fn()
+                except Exception:
+                    box['r'] = None
+                finally:
+                    ask_ev.set()
+            elif ev[0] == "iv_prog":
+                _, done, total, name = ev
+                self.progress.configure(maximum=max(total or 1, 1), value=done)
+                self.prog_label.config(text='{}/{}'.format(done, total or 1))
+                if name:
+                    shown = name if len(name) <= 40 else name[:20] + '…' + name[-19:]
+                    self.file_label.config(text='写入 {}'.format(shown), fg=ACCENT)
+                    self._file_mode = 'busy'
+            elif ev[0] == "iv_done":
+                self._iv_finish(ev[1])
             elif ev[0] == "done":
                 self._finish_run(ev[1], ev[2], ev[3])
             elif ev[0] == "aborted":
@@ -11841,6 +14624,7 @@ class App:
             self.btn_run.config(state='disabled')
             return
         self._save_paths()
+        self._show_full_log()     # 开跑就把日志页带出来，过程全在完整日志里
         if self.use_default.get():
             raw_paths = self._entry_paths()
         else:
@@ -11924,8 +14708,13 @@ class App:
     def _set_edit_enabled(self, en):
         st = 'normal' if en else 'disabled'
         for b in (self.btn_def_pick, self.btn_def_clear, self.btn_man_pick,
-                  self.btn_man_clear):
+                  self.btn_man_clear, self.iv_pick, self.iv_clear,
+                  self.iv_dump_pick, self.iv_dump_reload):
             b.config(state=st)
+        try:
+            self.iv_char.config(state='readonly' if en else 'disabled')
+        except Exception:
+            pass
 
     # ---------------- 自动更新 ----------------
     def _upd_reset(self):
@@ -12200,6 +14989,7 @@ class App:
             return
         if self.running:
             self.cancel_event.set()
+        self._closed = True     # 还在等对话框的工作线程据此不再等下去
         try:
             self._save_paths()
         except Exception:
