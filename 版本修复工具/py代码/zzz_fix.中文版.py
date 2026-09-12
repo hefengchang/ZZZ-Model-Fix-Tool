@@ -20,7 +20,7 @@ import urllib.parse
 import webbrowser
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.2B'
+APP_VERSION = 'v3.2C'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
@@ -43,7 +43,12 @@ from tkinter import ttk, filedialog, messagebox
 # ================= 同目录存在 txt 时程序优先读文件，打包后无 txt 用此内嵌版）
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
+版本3.2C
+--------
+1.更新：耀嘉音、扳机、橘福福脸部的 Hash 值支持对应的修复。
+2.修复与新增：优化了索引与顶点修复工具的逻辑，新增了耀嘉音、扳机、橘福福、蕾米埃尔的索引与顶点修复。
 ==============================
+
 版本 3.2B
 --------
 1.新增：索引与顶点修复工具，具体修复什么看使用说明
@@ -197,6 +202,18 @@ IB: 0e74656e（脸）
 【薇薇安Vivian】
 IB: 39944f20（脸）
   Texcoord: 0afe5a44 -> 50c5d703
+
+【扳机Trigger】
+IB: 40cd4182（脸）
+  Texcoord: d4a12ab7 -> 1132301e
+
+【橘福福jufufu】
+IB: 321768df（脸）
+  Texcoord: 8267358b -> 768c9ec4
+
+【耀佳音Astra】
+IB: 51831437（脸）
+  Texcoord: ffac76ac -> 01b43c04
 
 ===============================================================================
   版本 3.1 -> 3.11
@@ -2753,7 +2770,7 @@ hash_commands = {
     '3cd13d03': [(log, ('1.5 -> 1.6: AstraYao Body Blend Hash',)),    (update_hash, ('9d35c352',)),],
     'f8b92870': [(log, ('1.5 -> 1.6: AstraYao Hair Texcoord Hash',)), (update_hash, ('8ba0b335',)),],
     'da86a32e': [(log, ('1.5 -> 1.6: AstraYao Legs Texcoord Hash',)), (update_hash, ('1433ee78',)),],
-
+    'ffac76ac': [(log, ('3.1 -> 3.2: AstraYao Face-脸 texcoord_vb Hash',)), (update_hash, ('01b43c04',))],
     #Texture纹理
     # Face脸部
     '3a8d0dfc': [(log, ('1.5 -> 1.6: AstraYao Face Diffuse 2048p Hash',)), (update_hash, ('c41341b2',))],
@@ -2841,6 +2858,7 @@ hash_commands = {
     #IB
     '02d8a2cb': [(log, ('1.5: AstraSkin Body IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+
     #Texture纹理
     # Body身体
     '7301ca3a': [
@@ -5081,6 +5099,8 @@ hash_commands = {
     'f8ab3141': [(log, ('2.0: JuFufu Tail IB Hash',)), (add_ib_check_if_missing,)],
     '321768df': [(log, ('2.0: JuFufu Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+
+    '8267358b': [(log, ('3.1 -> 3.2: jufufu Face-脸 texcoord_vb Hash',)), (update_hash, ('768c9ec4',))],
 
     #Texture纹理
     # Face脸部
@@ -8395,6 +8415,8 @@ hash_commands = {
     '7f32eeae': [(log, ('1.6: Trigger Body IB Hash',)), (add_ib_check_if_missing,)],
     '40cd4182': [(log, ('1.6: Trigger Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+
+    'd4a12ab7': [(log, ('3.1 -> 3.2: Trigger Face-脸 texcoord_vb Hash',)), (update_hash, ('1132301e',))],
     'dfc69ad0': [(log, ('1.7 -> 2.0: Trigger Face Position',)), (update_hash, ('ba455625',))],
     'b9f0d595': [(log, ('2.2 -> 2.3: Trigger Face Texcoord',)), (update_hash, ('d4a12ab7',))],
 
@@ -11033,26 +11055,27 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
     一、骨骼索引（VGX）   blend.buf 里的骨骼索引被写错了
         症状：模型变形 —— 腿弯、塌陷、扭曲，但贴图正常
         已知需要修复的角色：
-        1.琉音腿变形
-        2.艾莲腿变形
+        1.琉音腿弯 2.艾莲腿弯 3.蕾米埃尔身体塌陷和腿扭曲
         做法：按角色表，或按 dump 参照推出来的映射，把索引逐个换对
 
     二、顶点格式（texcoord）  游戏更新改了顶点格式，老 mod 的 buf 布局对不上
         症状：贴图整体错乱，但模型形状完全正常
         已知需要修复的角色：
-        1.脸部破碎：珂蕾妲、露西、薇薇安、琉音、青衣（需要手动更新hash）
+        1.脸部破碎：珂蕾妲、露西、薇薇安、琉音、青衣（需要手动更新hash）、橘福福、扳机、耀嘉音
         做法：按目标表重排每个顶点的字节，并同步改 ini 里的 stride
 
     两类互相独立，哪个命中修哪个；都没命中就什么都不做。
 
 怎么用
 ------------------------------------------------
-    1. 先在“角色参照”里选这次修哪个角色（dump\\ 里有哪些角色就列哪些）。
-       只拿一个角色的 dump 当参照，不做跨角色匹配，所以这一步要选对。
+    1. 先在“参照文件夹”里选这次用哪一组参照。
+       分组按【dump 里的文件夹名】走，不按角色合并 —— 一个文件夹 = 一组参照。
+       dump\\ 里有几个文件夹就列几组（琉音-脸、琉音-腿、艾莲-腿 ……）。
+       只拿这一组的 dump 当参照，不做跨组匹配，所以这一步要选对。
 
-    2. 在“修复目标路径”里填【那个角色 mod 的文件夹】。
+    2. 在“修复目标路径”里填【那个 mod 的文件夹】。
        一次只填一个 —— 工具是递归扫整个文件夹找 ini / buf 的，
-       别把整个 Mods 目录拖进来，否则会扫到别的角色。
+       别把整个 Mods 目录拖进来，否则会扫到别的 mod。
        也可以直接把文件夹拖进窗口（拖进来是 dump 文件夹就当参照读）。
 
     3. 点“▶ 开始修复”：先把命中的问题列出来，弹窗确认后才写文件。
@@ -11060,28 +11083,40 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
 
     前提：mod 的 ini 里 hash 必须已经是当前版本 —— 先跑【版本Hash修复】。
 
-角色参照管到哪 (选错角色 = 整包不修)
+参照文件夹管到哪 (选错 = 整包不修)
 ------------------------------------------------
-    开修之前先拿 mod 的 ini 里的 hash 跟本次参照对一次：
+    开修之前先拿 mod 的 ini 里的 hash 跟本次这组参照对一次：
 
-        把这个角色 dump 里出现过的 hash 全收成一个集合
+        把这组 dump 里出现过的 hash 全收成一个集合
         （每个网格各算 Texcoord / Blend / Position 三个），
-        mod 的 ini 里【命中任意一个】就够了 —— 每个角色的 hash
-        都不一样，命中一个就说明这个 mod 和参照是同一个角色。
+        mod 的 ini 里【命中任意一个】就够了 —— 每组的 hash
+        都不一样，命中一个就说明这个 mod 和参照是同一组。
 
-    命中   ->  认定同角色，这个 mod 该怎么修怎么修
+    命中   ->  认定同组，这个 mod 该怎么修怎么修
     没命中 ->  整包不处理，日志写清楚，一个文件都不动
 
     日志里会写明命中的是哪个 hash，例如：
 
-        角色比对：ini 里的 hash ff36809b 命中本次参照【琉音(2)】
+        参照比对：ini 里的 hash ff36809b 命中本次参照【琉音(2)】
 
-    想修哪个角色，就把“角色参照”换成哪个角色。
+    想修哪个网格，就把“参照文件夹”换成它对应的那一组。
     前提还是那条：mod 的 ini 里 hash 要是当前版本（先跑版本Hash修复），
-    否则可能一个都对不上，被当成别的角色整包挡下来。
+    否则可能一个都对不上，被当成别的组整包挡下来。
 
     例外只有一种：程序目录 dump\\ 里一个数据都没有的时候，没有参照可核对，
-    这时只走表，不做角色限制。
+    这时只走表，不做参照限制。
+
+为什么不按角色归类
+------------------------------------------------
+    分组按 dump 里的【文件夹名】走，不按“角色”把同角色的几组并在一起。
+
+    因为参照是跟着修复进度走的：一组修过了，它的 buf 就跟没修过的那组
+    不是一个状态。合并成一个「琉音」的话，选「琉音」会把已经修过的
+    「琉音-腿」一起带上 —— 修「琉音-脸」的时候顺手又修一遍腿，
+    已经修好的那个网格被修第二遍。
+
+    所以 dump\\ 里一个文件夹就是一组，修过的那组要么单独选，
+    要么直接移出 dump\\ 别再参与。
 
 dump 参照
 ------------------------------------------------
@@ -11267,11 +11302,11 @@ def iv_progress(done, total, text):
 
 
 def active_ref_hashes():
-    """本次角色的 dump 里出现过的全部 hash：texcoord + blend + position。
+    """本次这组参照的 dump 里出现过的全部 hash：texcoord + blend + position。
 
     表（VGX_CHARACTERS / TEXCOORD_TARGETS）里的条目也要过这一关：
-    条目上的 hash 不在里面 = 这个网格不属于本次选的角色，一律不修 ——
-    免得选了 A 角色，拖进来 B 角色的 mod，靠表跨角色给修了。
+    条目上的 hash 不在里面 = 这个网格不属于本次选的这组，一律不修 ——
+    免得选了 A 组的参照，拖进来 B 组的 mod，靠表跨组给修了。
 
     返回 None = 没有 dump 参照（DUMP_MESHES 空），此时不做限制，
     只有表的模式照旧能用。
@@ -11294,10 +11329,10 @@ def ref_scope_text():
 
 
 def mod_ref_hit(target: Path, allowed):
-    """这个 mod 是不是本次参照那个角色的：拿 ini 里的 hash 跟白名单对。
+    """这个 mod 是不是本次这组参照的：拿 ini 里的 hash 跟白名单对。
 
-    每个角色的 hash 都不一样，所以【命中任意一个就够了】——
-    命中一个 = 这个 mod 和参照 dump 是同一个角色。
+    每组的 hash 都不一样，所以【命中任意一个就够了】——
+    命中一个 = 这个 mod 和参照 dump 是同一组。
     返回 (是否命中, 命中的那个 hash)。
     """
     if allowed is None:
@@ -11405,18 +11440,16 @@ TEX_LEGACY_INI_BACKUP_SUFFIX = '.tex48.bak'
 #
 #      索引与顶点修复工具\
 #          dump\
-#              琉音.json                  <- 游戏内 F8 抓的，改成角色名就行
-#              艾莲-脸部.json
+#              琉音-脸\                    <- 一个参照一个子文件夹
+#                  琉音-脸.json            （游戏内 F8 抓的）
+#              艾莲-腿\
+#                  d44a8015-24321-0.json
 #
-#   角色多的话也可以一个角色一个子文件夹：
+#  分组按【文件夹名】走，不按角色合并：一个文件夹 = 一组参照 = 一次修复的范围。
+#  同一角色不同部位/不同 mod 各放一个文件夹（名字写成「角色-部位」），
+#  合并了会把已经修过的那组一起带上，同一个网格修第二遍。
 #
-#          dump\
-#              琉音\
-#                  a1b2c3d4-12345-0.json
-#              艾莲\
-#                  ...
-#
-#  角色名（文件名或目录名）只用来在输出里显示，叫什么都可以；
+#  文件夹名（或直接放根目录时的文件名）只用来在输出里显示，叫什么都可以；
 #  json 内容不依赖文件名，所以随便改。
 #
 #  也可以填别的绝对路径，或运行时把 dump 文件夹直接拖进窗口：
@@ -12118,9 +12151,9 @@ def dxgi_chunk(fmt, width):
 def load_dump_folder(folder: Path):
     """读 dump 文件夹里的 json -> {texcoord hash: {mesh, new_format, blend_hash}}
 
-    角色名（只影响输出显示）：
+    分组名（只影响输出显示，也决定一次修多少）：
         直接放在 dump 根目录 -> 文件名（不含 .json）
-        放在子文件夹里       -> 子文件夹名
+        放在子文件夹里       -> 一级子文件夹名
     """
     meshes = {}
     for json_path in sorted(folder.rglob('*.json')):
@@ -12199,7 +12232,7 @@ def refresh_dumps():
     r"""加载 dump：本程序目录下的 dump\ 里的 + DUMP_DIRS 里配置的
 
     读到的全放进 ALL_DUMPS，DUMP_MESHES 是这次实际生效的那一份
-    （用户选了某个角色就只留那个角色的）。
+    （用户选了某一组就只留那一组的）。
     """
     ALL_DUMPS.clear()
     for folder in dump_roots():
@@ -12209,13 +12242,18 @@ def refresh_dumps():
 
 
 def character_of(info: dict) -> str:
-    """网格属于哪个角色（取名字里 '-' '_' 前面那一段）"""
+    """参照分组名 —— 按 dump 里的【文件夹名】走，不做角色归类。
+
+    子文件夹里的 json 取它所在的一级文件夹名；直接放 dump\\ 根目录的取文件名。
+    文件名里带 '-' '_' 也不拆：一个文件夹 = 一组参照 = 一次修复的范围。
+    拆了就会把已经修过的那组一起带上，同一个网格修两遍。
+    """
     name = info.get('character') or info.get('mesh') or '?'
-    return re.split(r'[-_ ]', name, maxsplit=1)[0] or name
+    return name
 
 
 def character_groups(dumps: dict = None) -> dict:
-    """按角色分组 -> {角色名: [tex_hash, ...]}"""
+    """按参照分组（dump 里的文件夹）-> {组名: [tex_hash, ...]}"""
     groups = {}
     for tex_hash, info in (dumps or ALL_DUMPS).items():
         groups.setdefault(character_of(info), []).append(tex_hash)
@@ -12223,7 +12261,7 @@ def character_groups(dumps: dict = None) -> dict:
 
 
 def set_active_dumps(character):
-    """把生效的 dump 限定到某个角色；None = 全都用"""
+    """把生效的 dump 限定到某一组参照；None = 全都用"""
     DUMP_MESHES.clear()
     if character is None:
         DUMP_MESHES.update(ALL_DUMPS)
@@ -12234,8 +12272,9 @@ def set_active_dumps(character):
 
 
 def dump_mesh_names(character) -> str:
-    """某个角色下都有哪些网格（显示用）"""
-    names = sorted({ALL_DUMPS[h]['character'] for h in character_groups().get(character, [])})
+    """这组参照下都有哪些网格（显示用）"""
+    names = sorted({Path(ALL_DUMPS[h].get('source') or '').stem or '?'
+                    for h in character_groups().get(character, [])})
     return '、'.join(names)
 
 
@@ -12247,7 +12286,7 @@ def describe_active_dumps() -> str:
 
 
 def choose_character():
-    """让用户选这次修哪个角色；返回选中的角色名，None = 全都用/没有 dump"""
+    """让用户选这次用哪组参照（dump 里的一个文件夹）；返回组名，None = 全都用/没有 dump"""
     if not ALL_DUMPS:
         return None
 
@@ -12255,19 +12294,19 @@ def choose_character():
     if len(groups) == 1:
         only = next(iter(groups))
         set_active_dumps(only)
-        print('dump\\ 里只有一个角色：{}（{}）'.format(only, dump_mesh_names(only)))
+        print('dump\\ 里只有一组参照：{}（{}）'.format(only, dump_mesh_names(only)))
         print()
         return only
 
-    print('dump\\ 里有这些角色的参照数据：')
+    print('dump\\ 里有这些参照（一组 = dump 里的一个文件夹）：')
     names = sorted(groups)
     for index, name in enumerate(names, 1):
         print('  {}. {:<10} {}'.format(index, name, dump_mesh_names(name)))
-    print('  0. 全都用（会跨角色匹配，不推荐）')
+    print('  0. 全都用（会跨组匹配，不推荐）')
     print()
 
     while True:
-        raw = ask('  这次修哪个角色？输序号（回车 = 1）: ').strip()
+        raw = ask('  这次用哪组参照？输序号（回车 = 1）: ').strip()
         if raw.lower() in EXIT_WORDS:
             print('退出。')
             sys.exit(0)
@@ -12292,7 +12331,7 @@ def choose_character():
         print(c('  没有这个序号。', Style.YELLOW))
 
 
-DUMP_README = r"""dump 文件夹 —— 各角色的网格信息（贴图错乱修复用）
+DUMP_README = r"""dump 文件夹 —— 各组参照的网格信息（贴图错乱修复用）
 ================================================
 
 普通用户
@@ -12305,27 +12344,28 @@ DUMP_README = r"""dump 文件夹 —— 各角色的网格信息（贴图错乱�
     里面缺哪个角色/哪个网格，反馈给作者补一份即可。
     （进游戏抓 dump 是作者的事，不需要你来做。）
 
-    作者提供了哪些网格，启动时程序会列出来：
-        dump 已读：3 个网格，角色：琉音、艾莲、露西
+    作者提供了哪些参照，启动时程序会列出来：
+        dump 已读：3 个网格，参照：琉音-脸、艾莲-腿、露西-脸
 
 作者（维护这个文件夹的人）
-    把 F8 抓的 Frame Analysis dump 的 json 丢进来，改成角色名就行：
+    把 F8 抓的 Frame Analysis dump 的 json 丢进来，**一个参照一个子文件夹**：
 
         dump\
-            琉音.json
-            艾莲-脸部.json
+            琉音-脸\
+                琉音-脸.json
+            艾莲-腿\
+                d44a8015-24321-0.json
 
-    角色多的话也可以一个角色一个子文件夹：
+    分组按【文件夹名】走，不按角色合并 —— 一个文件夹 = 一组参照 =
+    一次修复的范围。所以同一角色的不同部位/不同 mod 各放一个文件夹，
+    名字写成「角色-部位」，下拉里就是一组一条：
+        琉音-脸、琉音-腿、艾莲-腿 ……  而不是合并成一个「琉音」。
+    合并了的话，选「琉音」会把已经修过的「琉音-腿」一起带上，
+    同一个网格会被修第二遍 —— 所以千万别按角色合到同一个文件夹里。
 
-        dump\
-            琉音\
-                a1b2c3d4-12345-0.json
-            艾莲\
-                ...
-
-    名字只用来在输出里显示，随便改，json 内容不依赖文件名。
+    文件夹名只用来在输出里显示，随便改，json 内容不依赖文件名。
     整个 3DMigoto 那种嵌套目录（<ib hash>-<n>-<i>\TYPE_...\xxx.json）
-    直接拷过来也行，程序会递归找。
+    直接拷过来也行，程序会递归找，一级文件夹名当组名。
 
     抓法：游戏里进到该角色的画面，按 F8 抓 Frame Analysis，在 3DMigoto 的
     FrameAnalysis 文件夹里找到该网格的 json（文件名形如
@@ -12370,7 +12410,7 @@ def ensure_dump_dir():
 
 
 def load_dump_into_session(folder: Path):
-    """运行时把 dump 文件夹拖进来，返回 (新增网格数, 共读到几个, 新增的角色名)"""
+    """运行时把 dump 文件夹拖进来，返回 (新增网格数, 共读到几个, 新增的分组名)"""
     found = load_dump_folder(folder)
     added = 0
     names = set()
@@ -12439,7 +12479,7 @@ def tex_inventory(target: Path):
 
 
 def dump_old_strides() -> dict:
-    """dump 里的网格倒推出来的旧步幅 -> {步幅: 角色名集合}"""
+    """dump 里的网格倒推出来的旧步幅 -> {步幅: 分组名集合}"""
     result = {}
     for info in DUMP_MESHES.values():
         new_stride = fmt_stride(info['new_format'])
@@ -12461,7 +12501,7 @@ def dump_entry(tex_hash: str, info: dict) -> dict:
         # 放在子文件夹里：带上文件夹名，好定位是哪个网格的 dump
         label = '{}（dump：{}\\{}）'.format(info['mesh'], info['character'], source)
     else:
-        # 直接放在 dump\ 下：文件名就是角色名，不用再重复一遍
+        # 直接放在 dump\ 下：文件名就是分组名，不用再重复一遍
         label = '{}（dump）'.format(Path(source).stem)
     return {
         'name': label,
@@ -12768,18 +12808,18 @@ def apply_fix(target: Path):
     print('目录: {}'.format(target))
     print('VGX 角色表 {} 条    格式目标表 {} 条'.format(len(VGX_CHARACTERS), len(TEXCOORD_TARGETS)))
 
-    # 角色闸门：mod 的 ini 里命中本次参照的任意一个 hash = 同一个角色，整包放行；
-    # 一个都没命中 = 不是这个角色的 mod，一个文件都不动（每个角色的 hash 都不一样）
+    # 参照闸门：mod 的 ini 里命中本次这组参照的任意一个 hash = 同一组，整包放行；
+    # 一个都没命中 = 不是这组的 mod，一个文件都不动（每组的 hash 都不一样）
     hit, which = mod_ref_hit(target, active_ref_hashes())
     if not hit:
         print()
         print(c('这个 mod 的 ini 里没有一个 hash 属于本次参照【{}】。'.format(ref_scope_text()),
                 Style.YELLOW))
-        print(c('不是同一个角色，整包不处理 —— 想修它就把“角色参照”换成它对应的角色。',
+        print(c('不是这组参照的 mod，整包不处理 —— 想修它就把“参照文件夹”换成它对应的那组。',
                 Style.YELLOW))
         return
     if which:
-        print('角色比对：ini 里的 hash {} 命中本次参照【{}】'.format(which, ref_scope_text()))
+        print('参照比对：ini 里的 hash {} 命中本次参照【{}】'.format(which, ref_scope_text()))
     print()
 
     if not validate_vgx() or not validate_texcoord():
@@ -12956,8 +12996,8 @@ def take_dump_folder(folder: Path) -> bool:
     print(c('  识别为 dump 文件夹：读到 {} 个网格（新增 {}）'.format(total, added), Style.GREEN))
     print('  之后拖 mod 文件夹进来，贴图格式和骨骼索引都会自己对照，不用手填表。')
     if names:
-        print('  刚读进来的角色：{}'.format('、'.join(names)))
-        print('  想只用一个角色，输 {} 重选参照。'.format(c('c', Style.GREEN)))
+        print('  刚读进来的参照：{}'.format('、'.join(names)))
+        print('  想只用一组，输 {} 重选参照。'.format(c('c', Style.GREEN)))
     print()
     return True
 
@@ -12997,14 +13037,14 @@ def iv_drag_drop_loop():
     print()
     if DUMP_MESHES:
         print('这次生效的参照：{}'.format(c(describe_active_dumps(), Style.GREEN)))
-    print(c('  注意：一次只拖一个角色 mod 的文件夹（它自己的 ini 和 Buffer）。', Style.RED))
-    print(c('        不要把整个 Mods 目录拖进来 —— 会扫到别的角色的 mod。', Style.RED))
+    print(c('  注意：一次只拖一个 mod 的文件夹（它自己的 ini 和 Buffer）。', Style.RED))
+    print(c('        不要把整个 Mods 目录拖进来 —— 会扫到别的 mod。', Style.RED))
     print()
     print(c('=' * 62, Style.GRAY))
     print('把 mod 文件夹拖到本窗口（或直接粘贴路径），按 Enter')
     print('然后再选要做什么')
     if ALL_DUMPS:
-        print('  输入 {}{}{} 换角色（重选参照）'.format(Style.GREEN, 'c', Style.RESET))
+        print('  输入 {}{}{} 换参照组（重选参照）'.format(Style.GREEN, 'c', Style.RESET))
     print('  输入 {}{}{} 退出'.format(Style.GREEN, 'q', Style.RESET))
     print(c('=' * 62, Style.GRAY))
     print()
@@ -13021,8 +13061,8 @@ def iv_drag_drop_loop():
         if raw.lower() in EXIT_WORDS:
             print('退出。')
             break
-        # 换角色：重新选参照
-        if raw.lower() in ('c', 'juese', 'role', '角色', '换角色'):
+        # 换参照组：重新选参照
+        if raw.lower() in ('c', 'juese', 'role', '角色', '换角色', '参照', '换参照'):
             if ALL_DUMPS:
                 choose_character()
                 print('当前参照：{}'.format(describe_active_dumps()))
@@ -13082,7 +13122,7 @@ def iv_main():
     if paths:
         set_active_dumps(None)          # 命令行调用不提问，有多少用多少
     elif ALL_DUMPS:
-        choose_character()              # 先选修哪个角色，再拖 mod
+        choose_character()              # 先选用哪组参照，再拖 mod
 
     if DUMP_MESHES:
         print('这次生效的参照：{}'.format(describe_active_dumps()))
@@ -13720,12 +13760,12 @@ class App:
                 self.file_label.config(wraplength=w)
         bottom.bind('<Configure>', _wrap)
 
-        # ---- 索引与顶点修复的独立面板（路径/dump/角色/说明，切到该标签才显示） ----
+        # ---- 索引与顶点修复的独立面板（路径/dump/参照组/说明，切到该标签才显示） ----
         self._build_iv_panel(self.page_iv)
 
     # ---------------- 索引与顶点修复：独立面板 ----------------
     def _build_iv_panel(self, host):
-        """索引与顶点修复的独立面板：自己的路径栏、dump 参照、角色选择。
+        """索引与顶点修复的独立面板：自己的路径栏、dump 参照、参照组选择。
         日志窗口、进度条、状态行与版本Hash修复共用。"""
         card = tk.Frame(host, bg=CARD)
         card.pack(fill='x', padx=12, pady=(10, 0))
@@ -13751,7 +13791,7 @@ class App:
         self.iv_dump_pick.grid(row=2, column=2, padx=(8, 4), pady=(3, 3))
         self.iv_dump_reload = self._btn(card, '重新读取', self.iv_reload_dumps)
         self.iv_dump_reload.grid(row=2, column=3, padx=(0, 14), pady=(3, 3))
-        tk.Label(card, text='角色参照', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
+        tk.Label(card, text='参照文件夹', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
             row=3, column=0, padx=(14, 8), pady=(3, 4), sticky='w')
         self.iv_char = ttk.Combobox(card, state='readonly', font=(FONT, 9),
                                     style='Iv.TCombobox', values=[])
@@ -13761,10 +13801,10 @@ class App:
                                      justify='left', anchor='w')
         self.iv_char_hint.grid(row=3, column=2, columnspan=2, padx=(8, 14),
                                pady=(3, 4), sticky='ew')
-        tk.Label(card, text='注意：一次只处理一个角色 mod 的文件夹，别把整个 Mods 目录拖进来；'
+        tk.Label(card, text='注意：一次只处理一个 mod 的文件夹，别把整个 Mods 目录拖进来；'
                             '同一个 buf 不要修两次；ini 里的 hash 要先跑「版本Hash修复」更新到最新；'
-                            '角色参照卡的是 hash：mod 里的 hash 命中本次参照的任意一个才算同角色，'
-                            '选错角色整包不处理。',
+                            '参照按 dump 里的文件夹分组（一个文件夹一组，不按角色合并），'
+                            'mod 里的 hash 命中本次这组参照的任意一个才放行，选错整包不处理。',
                  bg=CARD, fg=WARN, font=(FONT, 8), justify='left', wraplength=760).grid(
             row=4, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
         self.iv_entry.bind('<Return>', lambda e: self._iv_start('apply'))
@@ -13859,7 +13899,7 @@ class App:
 
     # ---- dump 参照 ----
     def _iv_init_once(self):
-        """第一次切到该标签：建 dump 目录、读配置里的额外 dump、刷新角色下拉"""
+        """第一次切到该标签：建 dump 目录、读配置里的额外 dump、刷新参照下拉"""
         if self._iv_inited:
             return
         self._iv_inited = True
@@ -13887,7 +13927,7 @@ class App:
             self._show_full_log()
             return
         added, total, names = load_dump_into_session(p)
-        tail = '，角色：{}'.format('、'.join(names)) if names else ''
+        tail = '，参照：{}'.format('、'.join(names)) if names else ''
         self._log('已读 dump 文件夹：{} 个网格（新增 {}）{}'.format(total, added, tail), 'accent')
         self._register_dump_dir(str(p))
         self._iv_refresh_characters(keep=False)
@@ -13905,7 +13945,7 @@ class App:
             pass
 
     def _iv_refresh_characters(self, keep=True):
-        """重填角色下拉：dump 里有哪些角色就列哪些（只能选一个，不做跨角色匹配）"""
+        """重填参照下拉：dump 里有哪些文件夹就列哪些（只能选一组，不做跨组匹配）"""
         groups = character_groups()
         names = sorted(groups)
         cur = self.iv_char.get() if keep else ''
@@ -13919,7 +13959,7 @@ class App:
         self._iv_apply_character()
 
     def _iv_apply_character(self):
-        """按下拉选中的那个角色限定 dump 参照（没选/没 dump 就只有表能用）"""
+        """按下拉选中的那组参照限定 dump（没选/没 dump 就只有表能用）"""
         sel = self.iv_char.get()
         char = sel if sel in character_groups() else None
         set_active_dumps(char)
@@ -13927,11 +13967,10 @@ class App:
         if not ALL_DUMPS:
             hint = 'dump\\ 里还没有数据：顶点格式修不了，骨骼索引只能靠表'
         elif char:
-            meshes = sorted({ALL_DUMPS[h].get('character') or '?' for h in groups.get(char, [])})
-            hint = '本次只用【{}】的参照 · {} 个网格：{}'.format(
-                char, len(groups.get(char, [])), '、'.join(meshes))
+            hint = '本次只用【{}】这一组的参照 · {} 个网格：{}'.format(
+                char, len(groups.get(char, [])), dump_mesh_names(char))
         else:
-            hint = 'dump 里有 {} 个角色，请选一个（' + '、'.join(sorted(groups)) + '）'
+            hint = 'dump 里有 {} 组参照，请选一组（'.format(len(groups)) + '、'.join(sorted(groups)) + '）'
         self.iv_char_hint.config(text=hint)
         roots = [str(r) for r in dump_roots() if Path(r).is_dir()]
         shown = ' ； '.join(roots) if roots else '（没有 dump 目录）'
@@ -13948,12 +13987,13 @@ class App:
                '本次参照：{ref}\n\n'
                '① 先跑「版本Hash修复」\n'
                '   本工具是按 ini 里的 hash 找网格的。ini 里的 hash 还是旧版本值时，\n'
-               '   可能一个都对不上 —— 会被当成“不是这个角色”整包挡下来，白跑一趟。\n'
+               '   可能一个都对不上 —— 会被当成“不是这组参照”整包挡下来，白跑一趟。\n'
                '   没跑过就先切到左边的「版本Hash修复」把 hash 更新到最新，再回来修。\n\n'
                '② 注意事项\n'
-               '   · 一次只处理一个角色 mod 的文件夹，别把整个 Mods 目录拖进来\n'
+               '   · 一次只处理一个 mod 的文件夹，别把整个 Mods 目录拖进来\n'
                '   · 同一个 buf 不要修两次（有备份 / 标记的会自动跳过）\n'
-               '   · 角色参照要选对：mod 里的 hash 命中本次参照才算同一个角色\n'
+               '   · 参照文件夹要选对：按 dump 里的文件夹分组，不按角色合并；\n'
+               '     修过的那组别再连一起修，mod 里的 hash 命中本次这组才放行\n'
                '   · 每个文件改前都会自动备份，改错了点「↩ 还原」退回\n\n'
                '确定现在开始修吗？').format(name=name, ref=describe_active_dumps() or '（没有 dump）')
         return bool(self._dialog_choice('开修前先看一眼', msg,
@@ -13982,8 +14022,8 @@ class App:
                                 parent=self.root)
             return
         if ALL_DUMPS and self.iv_char.get() not in character_groups():
-            messagebox.showinfo('提示', '请先在“角色参照”里选这次要修的角色。\n'
-                                        '索引与顶点修复不做跨角色匹配，一次只对一个角色。',
+            messagebox.showinfo('提示', '请先在“参照文件夹”里选这次要用的一组参照。\n'
+                                        '索引与顶点修复不做跨组匹配，一次只用一组（dump 里的一个文件夹）。',
                                 parent=self.root)
             return
         paths = [tokens[0]]
