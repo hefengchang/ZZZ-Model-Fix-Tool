@@ -1,0 +1,27 @@
+[
+    {
+        "component_name": "Body",
+        "root_vs": "e8425f64cfb887cd",
+        "draw_vb": "6a0d36f2",
+        "position_vb": "0929171b",
+        "blend_vb": "93b69961",
+        "texcoord_vb": "c24cc6a1",
+        "ib": "92cb56c9",
+        "object_indexes": [
+            0,
+            64626
+        ],
+        "object_index_counts": [
+            64626,
+            222
+        ],
+        "object_classifications": [
+            "A",
+            "B"
+        ],
+        "texture_hashes": [
+            [],
+            []
+        ]
+    }
+]

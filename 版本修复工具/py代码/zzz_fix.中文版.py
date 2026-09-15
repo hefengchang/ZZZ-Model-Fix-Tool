@@ -20,7 +20,7 @@ import urllib.parse
 import webbrowser
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.2C'
+APP_VERSION = 'v3.2D'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
@@ -43,6 +43,12 @@ from tkinter import ttk, filedialog, messagebox
 # ================= 同目录存在 txt 时程序优先读文件，打包后无 txt 用此内嵌版）
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
+版本3.2D
+--------
+1.更新：全角色（主要为脸部）Hash 值支持对应的修复。
+2.新增：爱芮应援服、南宫羽应援服、千夏应援服 Hash 值支持对应的修复。
+3.新增：通用脸部修复（仅支持 3.1 -> 3.2 更新后 texcoord 变化的角色）
+
 版本3.2C
 --------
 1.更新：耀嘉音、扳机、橘福福脸部的 Hash 值支持对应的修复。
@@ -189,6 +195,80 @@ IB: 09a51ed3 -> 24a512cb（腿部）
   MaterialMap: 3b0c9e0a -> fb096287
   MaterialMap: 2dce69bd -> 0b54d931
 
+【哲Wise】
+IB: 8d6acf4e（身体）
+  Diffuse: 53b3623f -> 612c6929
+  Diffuse: a9652fa4 -> ee65d7bc
+
+【希格莉德-皮肤SigridSkin】
+IB: 84618ee0（头发）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: b51bdd59（发夹）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: d9e49957（身体）
+  Diffuse: 3a0cfbd4 -> b97a77bf
+  Diffuse: 8874c184 -> 7c862ede
+IB: b30db54e（尾巴）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: b4f608f5（转轮轴承）
+  Diffuse: 3a0cfbd4 -> b97a77bf
+  Diffuse: 8874c184 -> 7c862ede
+
+【希格莉德Sigrid】
+IB: 84618ee0（头发）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: b51bdd59（发夹）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: 64d7d56f（发箍）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: b20f90ea（腿部）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+IB: b30db54e（尾巴）
+  Diffuse: 66dbe05f -> cb3525dc
+  LightMap: bc582555 -> d7d68132
+  Diffuse: 0c4bea0f -> f2896dcc
+  LightMap: da6a6f0b -> 16d72691
+
+【露西-皮肤LucySkin】
+IB: 7cec7c94（帽子）
+  Diffuse: 4901de52 -> 28a02ec1
+  LightMap: ca69aa34 -> d2ba0029
+  MaterialMap: fdf85374 -> 8ea3cc55
+  Diffuse: 2cac44c0 -> 90b379de
+  LightMap: 8d155fc7 -> f1d1a335
+  MaterialMap: e96ce933 -> dfd183e8
+IB: 30abbad1（身体）
+  Diffuse: 4901de52 -> 28a02ec1
+  LightMap: ca69aa34 -> d2ba0029
+  MaterialMap: fdf85374 -> 8ea3cc55
+  Diffuse: 2cac44c0 -> 90b379de
+  LightMap: 8d155fc7 -> f1d1a335
+  MaterialMap: e96ce933 -> dfd183e8
+IB: d1e02a54（武器）
+  MaterialMap: acaa0bf6 -> 599a0d46
+  MaterialMap: a962e9eb -> 2ece6f26
+
 【琉音Dialyn】
 IB: d860525e（眉毛）
   texcoord_vb: d90368ed -> 27fd9193
@@ -203,6 +283,10 @@ IB: 0e74656e（脸）
 IB: 39944f20（脸）
   Texcoord: 0afe5a44 -> 50c5d703
 
+【薇薇安-皮肤VivianSkin】
+IB: 39944f20（脸）
+  Texcoord: 0afe5a44 -> 50c5d703
+
 【扳机Trigger】
 IB: 40cd4182（脸）
   Texcoord: d4a12ab7 -> 1132301e
@@ -214,6 +298,220 @@ IB: 321768df（脸）
 【耀佳音Astra】
 IB: 51831437（脸）
   Texcoord: ffac76ac -> 01b43c04
+
+【11号Soldier11】
+IB: bb315c43（Face 脸）
+  texcoord_vb: 39de00d5 -> f30b174b
+
+【丽娜Rina】
+IB: 9f90cfaa（脸）
+  Texcoord: 1866cf6a -> a79912e2
+
+【仪玄-皮肤YixuanSkin】
+IB: 8b067f99（脸）
+  texcoord_vb: 2e04aac2 -> 02426764
+
+【仪玄Yixuan】
+IB: 8b067f99（脸）
+  texcoord_vb: 2e04aac2 -> 02426764
+
+【伊德海莉Yidhair】
+IB: 02072970（眉毛）
+  Texcoord: cf1a7297 -> baf394c7
+IB: a2406060（脸）
+  Texcoord: 08316415 -> 40cdb80f
+
+【伊芙琳Evelyn】
+IB: ddf4efa6（脸）
+  Texcoord: aa2f560e -> b3136c51
+
+【千夏-皮肤ChinatsuSkin】
+IB: 30ea5791（眉毛）
+  texcoord_vb: e3cc1981 -> fd41220d
+IB: 1a2c8573（脸部）
+  texcoord_vb: 506dc9e1 -> f5ce8320
+
+【千夏Chinatsu】
+IB: 30ea5791（眉毛）
+  texcoord_vb: e3cc1981 -> fd41220d
+IB: 1a2c8573（脸部）
+  texcoord_vb: 506dc9e1 -> f5ce8320
+
+【南宫羽-皮肤NanGongYuSkin】
+IB: d643e19a（脸部）
+  texcoord_vb: 45910aef -> b8af50ce
+
+【南宫羽NanGongYu】
+IB: d643e19a（脸部）
+  texcoord_vb: 45910aef -> b8af50ce
+
+【卢西娅Lucia】
+IB: 84eaa4c6（眉毛）
+  texcoord_vb: 05342ce9 -> 9e121fda
+IB: 6986f28e（脸）
+  Texcoord: 9648c6d3 -> 43cb221f
+
+【可琳Corin】
+IB: a0c80593（Face脸）
+  Texcoord: 1c0725e4 -> daff87b1
+
+【叶瞬光-皮肤YeShunguangSkin】
+IB: 611df76d（眉毛）
+  texcoord_vb: 287c161c -> 014159dd
+IB: c28e6303（脸部）
+  texcoord_vb: a1353cc8 -> bf705014
+
+【叶瞬光YeShunguang】
+IB: c28e6303（脸部）
+  texcoord_vb: a1353cc8 -> bf705014
+
+【叶瞬光白毛YeShunguangWrite】
+IB: c28e6303（脸部）
+  texcoord_vb: a1353cc8 -> bf705014
+
+【奥菲丝Orphie】
+IB: ed85f33b（脸部）
+  texcoord_vb: 48191f72 -> 615a1f62
+
+【妮可-皮肤NicoleSkin】
+IB: 93b02078（脸）
+  Texcoord: d5958556 -> 31df6120
+
+【妮可Nicole】
+IB: 93b02078（脸）
+  Texcoord: d5958556 -> 31df6120
+
+【安东Anton】
+IB: a0201907（脸）
+  Texcoord: 144828a7 -> 558c7001
+
+【安比Anby】
+IB: 19df8e84（脸）
+  Texcoord: f818271a -> 3e7815b5
+
+【希希芙Cissia】
+IB: d1a31f0b（脸部）
+  texcoord_vb: dfc76798 -> 2bc69f3c
+
+【席德seed】
+IB: 09d9dca7（脸部）
+  texcoord_vb: a0dfaf80 -> 2bcb59f6
+
+【星见雅-皮肤MiyabiSkin】
+IB: dbd59d30（脸部）
+  texcoord_vb: 7a476f86 -> 60732ab5
+
+【普罗米娅Promeia】
+IB: e032287a（眉毛）
+  texcoord_vb: d3d65ca5 -> 644e5029
+IB: ef3c4506（脸部）
+  texcoord_vb: dcd61276 -> 6ca475b9
+
+【月城柳Yanagi】
+IB: 0817204c（Face脸）
+  Texcoord: 69c75b70 -> 68efc509
+
+【朱鸢ZhuYuan】
+IB: f1c241b7（脸）
+  Texcoord: 0c6f696b -> cc9f6187
+
+【柏妮思Burnice】
+IB: b3f6fcb3（脸）
+  Texcoord: 14b70725 -> 61782f72
+
+【格莉丝Grace】
+IB: 4d60568b（脸）
+  Texcoord: c3b7516b -> 63481380
+
+【波可娜Pulchra】
+IB: 62de5837（脸）
+  Texcoord: 2a29bb4e -> 75302f6a
+
+【派派Piper】
+IB: e11baad9（脸）
+  Texcoord: 58468aba -> 2fe49591
+
+【浅羽悠真Harumasa】
+IB: b0688334（脸）
+  Texcoord: 48152e31 -> 20095c2e
+
+【浮波柚叶-皮肤YuzuhaSkin】
+IB: 507384ea（脸）
+  Texcoord: 9d0f7ef5 -> 37a09c33
+
+【浮波柚叶Yuzuha】
+IB: 507384ea（脸）
+  Texcoord: 9d0f7ef5 -> 37a09c33
+
+【照Zhao】
+IB: 43c3c5a0（Face脸）
+  Texcoord: 76c4a041 -> c4618d41
+
+【爱丽丝-皮肤AliceSkin】
+IB: b078ff22（脸部）
+  texcoord_vb: 7c9dbd4a -> 0749a6d7
+
+【爱丽丝Alice】
+IB: b078ff22（脸部）
+  texcoord_vb: 7c9dbd4a -> 0749a6d7
+
+【爱芮-皮肤ArieSkin】
+IB: c0b0db5f（眉毛）
+  texcoord_vb: b7d38cbb -> aeeeaa7f
+IB: 27966f80（脸部）
+  texcoord_vb: 39d7123a -> c493b91c
+
+【爱芮Arie】
+IB: c0b0db5f（眉毛）
+  texcoord_vb: b7d38cbb -> aeeeaa7f
+IB: 27966f80（脸部）
+  texcoord_vb: 39d7123a -> c493b91c
+
+【爱芮智能体-皮肤ArieAgentSkin】
+IB: ffa703e8（脸部）
+  texcoord_vb: 9772ccda -> e619a2b8
+
+【爱芮智能体ArieAgent】
+IB: ffa703e8（脸部）
+  texcoord_vb: 9772ccda -> e619a2b8
+
+【狛野真斗Manato】
+IB: f987f156（脸）
+  Texcoord: 0fd41a37 -> 325bb10f
+
+【猫又Nekomata】
+IB: 37119851（脸）
+  Texcoord: aa036e70 -> 8bbcb25d
+
+【艾莲-皮肤EllenSkin】
+IB: f6ef8f3a（脸）
+  Texcoord: f87ddcae -> e56b3fdf
+
+【艾莲Ellen】
+IB: f6ef8f3a（Face脸）
+  Texcoord: 158fa3f3 -> ac48fc8a
+
+【苍角Soukaku】
+IB: 020f9ac6（脸）
+  Texcoord: c2db08f0 -> b3f1b714
+
+【莱卡恩Lycaon】
+IB: 6ffdfccb（Face脸）
+  Texcoord: 3adaebb3 -> b50b51c0
+
+【诺姆Norma】
+IB: d3b2ed9a（眉毛）
+  texcoord_vb: 7acc7619 -> d2e41266
+IB: 4fafb136（脸部）
+  texcoord_vb: b1412ed9 -> c1bd84e7
+
+【雨果Hugo】
+IB: 66b936fc（脸）
+  Texcoord: 99d2733a -> 0aacc89a
+
+【零号安比Soldier0】
+IB: e30ca87f（脸）
+  Texcoord: fc66ecd0 -> be99c90e
 
 ===============================================================================
   版本 3.1 -> 3.11
@@ -299,7 +597,8 @@ IB: f6e96452（脸）
 IB: d9e49957（身体）/b4f608f5(转轮轴承)
   Diffuse: b07c43ef -> 8874c184
   LightMap: 5e907c41 -> 2772f644
-
+  Diffuse: 82a7f32e -> 3a0cfbd4
+  LightMap: 1b4edd7b -> cfc4ac8a
 
 =======================================================================
   版本 2.8 → 3.0
@@ -2158,7 +2457,7 @@ hash_commands = {
     '625c2692': [(log, ('2.1: Alice Legs IB Hash',)), (add_ib_check_if_missing,)],
     'b078ff22': [(log, ('2.1: Alice Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    
+    '7c9dbd4a': [(log, ('2.1 -> 3.2: Alice Face-脸部 texcoord_vb Hash',)), (update_hash, ('0749a6d7',))],
     #Texture纹理
     # Face脸部
     '9f3e582c': [
@@ -2261,7 +2560,7 @@ hash_commands = {
     '19df8e84': [(log, ('1.0: Anby Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
     'ba016a6e': [(log, ('1.7 -> 2.0: Anby Face Texcoord Hash',)),    (update_hash, ('f818271a',)),],
-
+    'f818271a': [(log, ('2.0 -> 3.2: Anby Face-脸 texcoord_vb Hash',)), (update_hash, ('3e7815b5',))],
     #Remap
     # reverted in 1.2
     # '496a781d': [
@@ -2361,6 +2660,7 @@ hash_commands = {
     'a21fcee4': [(log, ('1.0: Anton Jacket IB Hash',)), (add_ib_check_if_missing,)],
     'a0201907': [(log, ('1.0: Anton Face IB Hash',)),   (add_ib_check_if_missing,)],
     #VB
+    '144828a7': [(log, ('1.0 -> 3.2: Anton Face-脸 texcoord_vb Hash',)), (update_hash, ('558c7001',))],
 
     #Texture纹理
     # Face脸部
@@ -2498,7 +2798,8 @@ hash_commands = {
     'e6ff7471': [(log, ('2.6: Arie Leg IB Hash',)), (add_ib_check_if_missing,)],
     '27966f80': [(log, ('2.6: Arie Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
+    #'b7d38cbb': [(log, ('2.6 -> 3.2: Arie Eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('aeeeaa7f',))],
+    '39d7123a': [(log, ('2.6 -> 3.2: Arie Face-脸部 texcoord_vb Hash',)), (update_hash, ('c493b91c',))],
     #Texture纹理
     # Face脸部
     '1b2ae01f': [
@@ -2561,6 +2862,48 @@ hash_commands = {
         (log,                           ('2.6: Arie BodyA MaterialMap 1024p Hash',)),
         (multiply_section_if_missing,   ('40eff501', 'Arie.BodyA.MaterialMap.2048')),
     ],
+
+    # MARK: ArieCheer爱芮应援
+    '175a0c0a': [(log, ('3.1: ArieCheer Body IB Hash',)), (add_ib_check_if_missing,)],
+    '73976aee': [(log, ('3.1: ArieCheer Leg IB Hash',)), (add_ib_check_if_missing,)],
+    
+    # Body
+    '6d0ce8c7': [
+        (log,                           ('3.1: ArieCheer BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('52d90d4e', 'ArieCheer.BodyA.Diffuse.1024')),
+    ],
+    '52d90d4e': [
+        (log,                           ('3.1: ArieCheer BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('6d0ce8c7', 'ArieCheer.BodyA.Diffuse.2048')),
+    ],
+    '6193ed20': [
+        (log,                           ('3.1: ArieCheer BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('c534187b', 'ArieCheer.BodyA.LightMap.1024')),
+    ],
+    'c534187b': [
+        (log,                           ('3.1: ArieCheer BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('6193ed20', 'ArieCheer.BodyA.LightMap.2048')),
+    ],
+    'a9bf33e2': [
+        (log,                           ('3.1: ArieCheer BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('e323c61a', 'ArieCheer.BodyA.MaterialMap.1024')),
+    ],
+    'e323c61a': [
+        (log,                           ('3.1: ArieCheer BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('a9bf33e2', 'ArieCheer.BodyA.MaterialMap.2048')),
+    ],
+    
+    # Leg
+    'e227c76b': [
+        (log,                           ('3.1: ArieCheer LegA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('ef6c7cf7', 'ArieCheer.LegA.Diffuse.1024')),
+    ],
+    'ef6c7cf7': [
+        (log,                           ('3.1: ArieCheer LegA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('e227c76b', 'ArieCheer.LegA.Diffuse.2048')),
+    ],
+    
+
 
     # MARK: ArieSkin爱芮皮肤
     #IB
@@ -2628,7 +2971,7 @@ hash_commands = {
     '046400d3': [(log, ('2.6: ArieAgent Body IB Hash',)), (add_ib_check_if_missing,)],
     'ffa703e8': [(log, ('2.6: ArieAgent Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
+    '9772ccda': [(log, ('2.6 -> 3.2: ArieAgent Face-脸部 texcoord_vb Hash',)), (update_hash, ('e619a2b8',))],
     #Texture纹理
     # Face脸部
     '741d7c8f': [
@@ -3465,6 +3808,7 @@ hash_commands = {
     'af63e974': [(log, ('1.2: Burnice Body IB Hash',)), (add_ib_check_if_missing,)],
     'b3f6fcb3': [(log, ('1.2: Burnice Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '14b70725': [(log, ('1.2 -> 3.2: Burnice Face-脸 texcoord_vb Hash',)), (update_hash, ('61782f72',))],
 
     #Texture纹理
     # Face脸部
@@ -3662,7 +4006,8 @@ hash_commands = {
     'e7a17172': [(log, ('2.6: Chinatsu Paopao IB Hash',)), (add_ib_check_if_missing,)],
     '07a82c9c': [(log, ('2.6: Chinatsu PaopaoA IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
+    #'e3cc1981': [(log, ('2.6 -> 3.2: Chinatsu Eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('fd41220d',))],
+    '506dc9e1': [(log, ('2.6 -> 3.2: Chinatsu Face-脸部 texcoord_vb Hash',)), (update_hash, ('f5ce8320',))],
     #Texture纹理
     # Face脸部
     'c9b5c6ce': [
@@ -3778,6 +4123,30 @@ hash_commands = {
         (multiply_section_if_missing,   ('3c4378db', 'Chinatsu.PaopaoA.MaterialMap.2048')),
     ],
 
+    # MARK: ChinatsuCheer千夏应援
+    '7efbdabd': [(log, ('3.1: ChinatsuCheer Body IB Hash',)), (add_ib_check_if_missing,)],
+    'd1e30827': [(log, ('3.1: ChinatsuCheer Hair IB Hash',)), (add_ib_check_if_missing,)],
+    
+    # Body
+    '92795007': [
+        (log,                           ('3.1: ChinatsuCheer BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('cfc369ad', 'ChinatsuCheer.BodyA.Diffuse.1024')),
+    ],
+    'cfc369ad': [
+        (log,                           ('3.1: ChinatsuCheer BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('92795007', 'ChinatsuCheer.BodyA.Diffuse.2048')),
+    ],
+    '6ca38b24': [
+        (log,                           ('3.1: ChinatsuCheer BodyB Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('0ee62260', 'ChinatsuCheer.BodyB.Diffuse.1024')),
+    ],
+    '0ee62260': [
+        (log,                           ('3.1: ChinatsuCheer BodyB Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('6ca38b24', 'ChinatsuCheer.BodyB.Diffuse.2048')),
+    ],
+    
+
+
     # MARK: ChinatsuSkin千夏皮肤
     #IB
     'a6d82ba5': [(log, ('2.7: ChinatsuSkin Hair IB Hash',)), (add_ib_check_if_missing,)],
@@ -3852,6 +4221,7 @@ hash_commands = {
     '4c11c155': [(log, ('2.7: Cissia Tail IB Hash',)), (add_ib_check_if_missing,)],
     'd1a31f0b': [(log, ('2.7: Cissia Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    'dfc76798': [(log, ('2.7 -> 3.2: Cissia Face-脸部 texcoord_vb Hash',)), (update_hash, ('2bc69f3c',))],
 
     #Texture纹理
     # Face脸部
@@ -4076,6 +4446,7 @@ hash_commands = {
     'a0c80593': [(log, ('1.0: Corin Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
 
+    '1c0725e4': [(log, ('1.0 -> 3.2: Corin Face脸 texcoord_vb Hash',)), (update_hash, ('daff87b1',))],
 
     '8d999156': [(log, ('1.3 -> 1.4: Corin Hair Blend Hash',)),    (update_hash, ('5fa50113',)),],
     '2cf242f4': [(log, ('1.3 -> 1.4: Corin Hair Texcoord Hash',)), (update_hash, ('abc95b03',)),],
@@ -4254,7 +4625,7 @@ hash_commands = {
     'a72cfb34': [(log, ('1.0 -> 1.1: Ellen Body IB Hash',)),       (update_hash, ('e30fae03',))],
 
     '83dfd744': [(log, ('1.0 -> 1.1: Ellen Face Texcoord Hash',)), (update_hash, ('8744badf',))],
-
+    '158fa3f3': [(log, ('? -> 3.2: Ellen Face脸 texcoord_vb Hash',)), (update_hash, ('ac48fc8a',))],
 
     'd59a5fec': [(log, ('1.0 -> 1.1: Ellen Hair Draw Hash',)),     (update_hash, ('77ac5f85',))],
     'a5448398': [(log, ('1.0 -> 1.1: Ellen Hair Position Hash',)), (update_hash, ('ba0fe600',))],
@@ -4381,6 +4752,7 @@ hash_commands = {
     '4a938c0a': [(log, ('1.5: EllenSkin Body IB Hash',)), (add_ib_check_if_missing,)],
     'fafcfe36': [(log, ('1.5: EllenSkin Tail IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    'f87ddcae': [(log, ('1.5 -> 3.2: EllenSkin Face-脸 texcoord_vb Hash',)), (update_hash, ('e56b3fdf',))],
     #Texture纹理
     # Hair头发 Leg
     '6e15911b': [
@@ -4484,6 +4856,7 @@ hash_commands = {
     'b3eaedb0': [(log, ('1.5: Evelyn Shoulders IB Hash',)), (add_ib_check_if_missing,)],
     'ddf4efa6': [(log, ('1.5: Evelyn Face IB Hash',)),      (add_ib_check_if_missing,)],
     #VB
+    'aa2f560e': [(log, ('1.5 -> 3.2: Evelyn Face-脸 texcoord_vb Hash',)), (update_hash, ('b3136c51',))],
 
     #Texture纹理
     # Face脸部
@@ -4556,6 +4929,8 @@ hash_commands = {
     '8b240678': [(log, ('1.2: Grace Body IB Hash',)), (add_ib_check_if_missing,)],
     '4d60568b': [(log, ('1.0: Grace Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    'c3b7516b': [(log, ('1.0 -> 3.2: Grace Face-脸 texcoord_vb Hash',)), (update_hash, ('63481380',))],
+
     'e5e04f6f': [(log, ('1.1 -> 1.2: Grace Body Draw Hash',)),     (update_hash, ('f1cba806',))],
     'e536af35': [(log, ('1.1 -> 1.2: Grace Body Texcoord Hash',)), (update_hash, ('4bb45448',))],
     '0f82a13e': [
@@ -4718,6 +5093,7 @@ hash_commands = {
     '79679a10': [(log, ('1.4: Harumasa Body IB Hash',)), (add_ib_check_if_missing,)],
     'b0688334': [(log, ('1.4: Harumasa Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '48152e31': [(log, ('1.4 -> 3.2: Harumasa Face-脸 texcoord_vb Hash',)), (update_hash, ('20095c2e',))],
 
     '78bea30d': [(log, ('1.4 -> 1.5: Harumasa Body IB Hash',)), (update_hash, ('79679a10',))],
 
@@ -4851,6 +5227,7 @@ hash_commands = {
     '5db95af3': [(log, ('1.7: Hugo Badge IB Hash',)), (add_ib_check_if_missing,)],
     '66b936fc': [(log, ('1.7: Hugo Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '99d2733a': [(log, ('1.7 -> 3.2: Hugo Face-脸 texcoord_vb Hash',)), (update_hash, ('0aacc89a',))],
 
     #Texture纹理
     # Face脸部
@@ -5408,6 +5785,8 @@ hash_commands = {
     'd39c304d': [(log, ('2.3: Lucia Body IB Hash',)),         (add_ib_check_if_missing,)],
     '6986f28e': [(log, ('2.3: Lucia Face IB Hash',)),         (add_ib_check_if_missing,)],
     #VB
+    #'05342ce9': [(log, ('2.3 -> 3.2: Lucia eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('9e121fda',))],
+    '9648c6d3': [(log, ('2.3 -> 3.2: Lucia Face-脸 texcoord_vb Hash',)), (update_hash, ('43cb221f',))],
 
     #Texture纹理
     # Face脸部
@@ -5619,32 +5998,49 @@ hash_commands = {
     '7cec7c94': [(log, ('3.1: LucySkin Hat IB Hash',)), (add_ib_check_if_missing,)],
     
     # Body
-    '2cac44c0': [
-        (log,                           ('3.1: LucySkin BodyA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   ('4901de52', 'LucySkin.BodyA.Diffuse.1024')),
+    '2cac44c0': [(log, ('3.1 -> 3.2: LucySkin BodyA Diffuse 2048p Hash',)), (update_hash, ('90b379de',))],
+    '90b379de': [
+        (log,                           ('3.2: LucySkin BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   (('4901de52','28a02ec1'), 'LucySkin.BodyA.Diffuse.1024')),
     ],
-    '4901de52': [
-        (log,                           ('3.1: LucySkin BodyA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   ('2cac44c0', 'LucySkin.BodyA.Diffuse.2048')),
+    '4901de52': [(log, ('3.1 -> 3.2: LucySkin BodyA Diffuse 1024p Hash',)), (update_hash, ('28a02ec1',))],
+    '28a02ec1': [
+        (log,                           ('3.2: LucySkin BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   (('2cac44c0','90b379de'), 'LucySkin.BodyA.Diffuse.2048')),
     ],
-    '8d155fc7': [
-        (log,                           ('3.1: LucySkin BodyA LightMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('ca69aa34', 'LucySkin.BodyA.LightMap.1024')),
+    '8d155fc7': [(log, ('3.1 -> 3.2: LucySkin BodyA LightMap 2048p Hash',)), (update_hash, ('f1d1a335',))],
+    'f1d1a335': [
+        (log,                           ('3.2: LucySkin BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   (('ca69aa34','d2ba0029'), 'LucySkin.BodyA.LightMap.1024')),
     ],
-    'ca69aa34': [
-        (log,                           ('3.1: LucySkin BodyA LightMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('8d155fc7', 'LucySkin.BodyA.LightMap.2048')),
+    'ca69aa34': [(log, ('3.1 -> 3.2: LucySkin BodyA LightMap 1024p Hash',)), (update_hash, ('d2ba0029',))],
+    'd2ba0029': [
+        (log,                           ('3.2: LucySkin BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   (('8d155fc7','f1d1a335'), 'LucySkin.BodyA.LightMap.2048')),
     ],
-    'e96ce933': [
-        (log,                           ('3.1: LucySkin BodyA MaterialMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('fdf85374', 'LucySkin.BodyA.MaterialMap.1024')),
+    'e96ce933': [(log, ('3.1 -> 3.2: LucySkin BodyA MaterialMap 2048p Hash',)), (update_hash, ('dfd183e8',))],
+    'dfd183e8': [
+        (log,                           ('3.2: LucySkin BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   (('fdf85374','8ea3cc55'), 'LucySkin.BodyA.MaterialMap.1024')),
     ],
-    'fdf85374': [
-        (log,                           ('3.1: LucySkin BodyA MaterialMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('e96ce933', 'LucySkin.BodyA.MaterialMap.2048')),
+    'fdf85374': [(log, ('3.1 -> 3.2: LucySkin BodyA MaterialMap 1024p Hash',)), (update_hash, ('8ea3cc55',))],
+    '8ea3cc55': [
+        (log,                           ('3.2: LucySkin BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   (('e96ce933','dfd183e8'), 'LucySkin.BodyA.MaterialMap.2048')),
     ],
 
-        
+    # Weapon武器
+    'a962e9eb': [(log, ('3.1 -> 3.2: LucySkin weapon-武器 MaterialMap 2048p Hash',)), (update_hash, ('2ece6f26',))],
+    '2ece6f26': [
+        (log,                           ('3.2: LucySkin weapon-武器 MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   (('acaa0bf6','599a0d46'), 'LucySkin.weaponA.MaterialMap.2048')),
+    ],
+    'acaa0bf6': [(log, ('3.1 -> 3.2: LucySkin weapon-武器 MaterialMap 1024p Hash',)), (update_hash, ('599a0d46',))],
+    '599a0d46': [
+        (log,                           ('3.2: LucySkin weapon-武器 MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   (('a962e9eb','2ece6f26'), 'LucySkin.weaponA.MaterialMap.1024')),
+    ],
+
 
     # MARK: Lycaon莱卡恩
     #IB
@@ -5664,6 +6060,7 @@ hash_commands = {
     'c862a611': [(log, ('1.5 -> 1.6: Lycaon Face Blend Hash',)),    (update_hash, ('e2d4c532',))],
     '6902f441': [(log, ('1.? -> 1.?: Lycaon Face Texcoord Hash',)), (update_hash, ('b1edaf35',))],
     'b1edaf35': [(log, ('1.? -> 1.6: Lycaon Face Texcoord Hash',)), (update_hash, ('3adaebb3',))],
+    '3adaebb3': [(log, ('1.6 -> 3.2: Lycaon Face脸 texcoord_vb Hash',)), (update_hash, ('b50b51c0',))],
     '7341e07b': [(log, ('1.5 -> 1.6: Lycaon Face IB Hash',)),       (update_hash, ('6ffdfccb',))],
 
     #Remap
@@ -5811,6 +6208,7 @@ hash_commands = {
     'c0425328': [(log, ('2.3: Manato Legs IB Hash',)),   (add_ib_check_if_missing,)],
     'f987f156': [(log, ('2.3: Manato Face IB Hash',)),   (add_ib_check_if_missing,)],
     #VB
+    '0fd41a37': [(log, ('2.3 -> 3.2: Manato Face-脸 texcoord_vb Hash',)), (update_hash, ('325bb10f',))],
 
     #Texture纹理
     # Face脸部
@@ -5956,6 +6354,7 @@ hash_commands = {
     'a913e9a9': [(log, ('2.8: MiyabiSkin Body IB Hash',)), (add_ib_check_if_missing,)],
     'fbb18630': [(log, ('2.8: MiyabiSkin Clothes IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '7a476f86': [(log, ('2.8 -> 3.2: MiyabiSkin Face-脸部 texcoord_vb Hash',)), (update_hash, ('60732ab5',))],
 
     'f2f19cb2': [(log, ('2.8 -> 2.81: MiyabiSkin Body Blend Hash',)),   (update_hash, ('5121459b',)),],
     #Texture纹理
@@ -6015,119 +6414,142 @@ hash_commands = {
         (multiply_section_if_missing,   (('1e1485e7','30590865'), 'MiyabiSkin.ClothesA.MaterialMap.2048')),
     ],
 
-    # MARK: NanGongYu南宫羽
+    # MARK: Nanyu南宫羽
     #IB
-    '969152d4': [(log, ('2.7: NanGongYu Hair IB Hash',)), (add_ib_check_if_missing,)],
-    '4586e530': [(log, ('2.7: NanGongYu Body IB Hash',)), (add_ib_check_if_missing,)],
-    'd643e19a': [(log, ('2.7: NanGongYu Face IB Hash',)), (add_ib_check_if_missing,)],
+    '969152d4': [(log, ('2.7: Nanyu Hair IB Hash',)), (add_ib_check_if_missing,)],
+    '4586e530': [(log, ('2.7: Nanyu Body IB Hash',)), (add_ib_check_if_missing,)],
+    'd643e19a': [(log, ('2.7: Nanyu Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-
+    '45910aef': [(log, ('2.7 -> 3.2: Nanyu Face-脸部 texcoord_vb Hash',)), (update_hash, ('b8af50ce',))],
     #Texture纹理
     # Face脸部
     '1fd77103': [
-        (log,                           ('2.7: NanGongYu FaceA Diffuse 2048p Hash',)),
-        (add_section_if_missing,        ('d643e19a', 'NanGongYu.Face.IB', 'match_priority = 0\n')),
-        (multiply_section_if_missing,   ('b6e87aef', 'NanGongYu.FaceA.Diffuse.1024')),
+        (log,                           ('2.7: Nanyu FaceA Diffuse 2048p Hash',)),
+        (add_section_if_missing,        ('d643e19a', 'Nanyu.Face.IB', 'match_priority = 0\n')),
+        (multiply_section_if_missing,   ('b6e87aef', 'Nanyu.FaceA.Diffuse.1024')),
     ],
     'b6e87aef': [
-        (log,                           ('2.7: NanGongYu FaceA Diffuse 1024p Hash',)),
-        (add_section_if_missing,        ('d643e19a', 'NanGongYu.Face.IB', 'match_priority = 0\n')),
-        (multiply_section_if_missing,   ('1fd77103', 'NanGongYu.FaceA.Diffuse.2048')),
+        (log,                           ('2.7: Nanyu FaceA Diffuse 1024p Hash',)),
+        (add_section_if_missing,        ('d643e19a', 'Nanyu.Face.IB', 'match_priority = 0\n')),
+        (multiply_section_if_missing,   ('1fd77103', 'Nanyu.FaceA.Diffuse.2048')),
     ],
 
     # Hair头发
     'df39b77c': [
-        (log,                           ('2.7: NanGongYu HairA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   ('d2e23730', 'NanGongYu.HairA.Diffuse.1024')),
+        (log,                           ('2.7: Nanyu HairA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('d2e23730', 'Nanyu.HairA.Diffuse.1024')),
     ],
     'd2e23730': [
-        (log,                           ('2.7: NanGongYu HairA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   ('df39b77c', 'NanGongYu.HairA.Diffuse.2048')),
+        (log,                           ('2.7: Nanyu HairA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('df39b77c', 'Nanyu.HairA.Diffuse.2048')),
     ],
     'd94a0c41': [
-        (log,                           ('2.7: NanGongYu HairA LightMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('e3573bc8', 'NanGongYu.HairA.LightMap.1024')),
+        (log,                           ('2.7: Nanyu HairA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('e3573bc8', 'Nanyu.HairA.LightMap.1024')),
     ],
     'e3573bc8': [
-        (log,                           ('2.7: NanGongYu HairA LightMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('d94a0c41', 'NanGongYu.HairA.LightMap.2048')),
+        (log,                           ('2.7: Nanyu HairA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('d94a0c41', 'Nanyu.HairA.LightMap.2048')),
     ],
     'a458a615': [
-        (log,                           ('2.7: NanGongYu HairA MaterialMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('687f57b8', 'NanGongYu.HairA.MaterialMap.1024')),
+        (log,                           ('2.7: Nanyu HairA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('687f57b8', 'Nanyu.HairA.MaterialMap.1024')),
     ],
     '687f57b8': [
-        (log,                           ('2.7: NanGongYu HairA MaterialMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('a458a615', 'NanGongYu.HairA.MaterialMap.2048')),
+        (log,                           ('2.7: Nanyu HairA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('a458a615', 'Nanyu.HairA.MaterialMap.2048')),
     ],
 
     # Body身体
-    '2d290490': [(log,('2.7: -> 2.8: NanGongYu BodyA Diffuse 2048p Hash',)),(update_hash,('11254966',)),],
+    '2d290490': [(log,('2.7: -> 2.8: Nanyu BodyA Diffuse 2048p Hash',)),(update_hash,('11254966',)),],
     '11254966': [
-        (log,                           ('2.7: NanGongYu BodyA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   (('fe06152c','dc41fbbf'), 'NanGongYu.BodyA.Diffuse.1024')),
+        (log,                           ('2.7: Nanyu BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   (('fe06152c','dc41fbbf'), 'Nanyu.BodyA.Diffuse.1024')),
     ],
-    'fe06152c': [(log,('2.7: -> 2.8: NanGongYu BodyA Diffuse 1024p Hash',)),(update_hash,('dc41fbbf',)),],
+    'fe06152c': [(log,('2.7: -> 2.8: Nanyu BodyA Diffuse 1024p Hash',)),(update_hash,('dc41fbbf',)),],
     'dc41fbbf': [
-        (log,                           ('2.7: NanGongYu BodyA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   (('2d290490','11254966'), 'NanGongYu.BodyA.Diffuse.2048')),
+        (log,                           ('2.7: Nanyu BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   (('2d290490','11254966'), 'Nanyu.BodyA.Diffuse.2048')),
     ],
     'fee3d533': [
-        (log,                           ('2.7: NanGongYu BodyA LightMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('ab51539c', 'NanGongYu.BodyA.LightMap.1024')),
+        (log,                           ('2.7: Nanyu BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('ab51539c', 'Nanyu.BodyA.LightMap.1024')),
     ],
     'ab51539c': [
-        (log,                           ('2.7: NanGongYu BodyA LightMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('fee3d533', 'NanGongYu.BodyA.LightMap.2048')),
+        (log,                           ('2.7: Nanyu BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('fee3d533', 'Nanyu.BodyA.LightMap.2048')),
     ],
     'beb11b78': [
-        (log,                           ('2.7: NanGongYu BodyA MaterialMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('958e389e', 'NanGongYu.BodyA.MaterialMap.1024')),
+        (log,                           ('2.7: Nanyu BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('958e389e', 'Nanyu.BodyA.MaterialMap.1024')),
     ],
     '958e389e': [
-        (log,                           ('2.7: NanGongYu BodyA MaterialMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('beb11b78', 'NanGongYu.BodyA.MaterialMap.2048')),
+        (log,                           ('2.7: Nanyu BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('beb11b78', 'Nanyu.BodyA.MaterialMap.2048')),
     ],
 
-    # MARK: NanGongYuSkin南宫羽皮肤
+    # MARK: NanyuCheer南宫羽应援
+    'fb76d934': [(log, ('3.1: NanyuCheer Body IB Hash',)), (add_ib_check_if_missing,)],
+    
+    # Body
+    'f0e8f22e': [
+        (log,                           ('3.1: NanyuCheer BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('2eb1446e', 'NanyuCheer.BodyA.Diffuse.1024')),
+    ],
+    '2eb1446e': [
+        (log,                           ('3.1: NanyuCheer BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('f0e8f22e', 'NanyuCheer.BodyA.Diffuse.2048')),
+    ],
+    '9cfeac60': [
+        (log,                           ('3.1: NanyuCheer BodyB Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('91f00b40', 'NanyuCheer.BodyB.Diffuse.1024')),
+    ],
+    '91f00b40': [
+        (log,                           ('3.1: NanyuCheer BodyB Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('9cfeac60', 'NanyuCheer.BodyB.Diffuse.2048')),
+    ],
+        
+
+
+    # MARK: NanyuSkin南宫羽皮肤
     #IB
-    '5f2741ff': [(log, ('2.7: NanGongYuSkin Body IB Hash',)), (add_ib_check_if_missing,)],
+    '5f2741ff': [(log, ('2.7: NanyuSkin Body IB Hash',)), (add_ib_check_if_missing,)],
     #VB
     #Texture纹理
     # Hair头发
     '5a026445': [
-        (log,                           ('2.7: NanGongYuSkin HairA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   ('4fa2f495', 'NanGongYuSkin.HairA.Diffuse.1024')),
+        (log,                           ('2.7: NanyuSkin HairA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('4fa2f495', 'NanyuSkin.HairA.Diffuse.1024')),
     ],
     '4fa2f495': [
-        (log,                           ('2.7: NanGongYuSkin HairA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   ('5a026445', 'NanGongYuSkin.HairA.Diffuse.2048')),
+        (log,                           ('2.7: NanyuSkin HairA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('5a026445', 'NanyuSkin.HairA.Diffuse.2048')),
     ],
 
     # Body身体
     '46c73033': [
-        (log,                           ('2.7: NanGongYuSkin BodyA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   ('263aba53', 'NanGongYuSkin.BodyA.Diffuse.1024')),
+        (log,                           ('2.7: NanyuSkin BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('263aba53', 'NanyuSkin.BodyA.Diffuse.1024')),
     ],
     '263aba53': [
-        (log,                           ('2.7: NanGongYuSkin BodyA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   ('46c73033', 'NanGongYuSkin.BodyA.Diffuse.2048')),
+        (log,                           ('2.7: NanyuSkin BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('46c73033', 'NanyuSkin.BodyA.Diffuse.2048')),
     ],
     'c17bc21d': [
-        (log,                           ('2.7: NanGongYuSkin BodyA LightMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('79423b33', 'NanGongYuSkin.BodyA.LightMap.1024')),
+        (log,                           ('2.7: NanyuSkin BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('79423b33', 'NanyuSkin.BodyA.LightMap.1024')),
     ],
     '79423b33': [
-        (log,                           ('2.7: NanGongYuSkin BodyA LightMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('c17bc21d', 'NanGongYuSkin.BodyA.LightMap.2048')),
+        (log,                           ('2.7: NanyuSkin BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('c17bc21d', 'NanyuSkin.BodyA.LightMap.2048')),
     ],
     'e8200d09': [
-        (log,                           ('2.7: NanGongYuSkin BodyA MaterialMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('1786d968', 'NanGongYuSkin.BodyA.MaterialMap.1024')),
+        (log,                           ('2.7: NanyuSkin BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('1786d968', 'NanyuSkin.BodyA.MaterialMap.1024')),
     ],
     '1786d968': [
-        (log,                           ('2.7: NanGongYuSkin BodyA MaterialMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('e8200d09', 'NanGongYuSkin.BodyA.MaterialMap.2048')),
+        (log,                           ('2.7: NanyuSkin BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('e8200d09', 'NanyuSkin.BodyA.MaterialMap.2048')),
     ],
 
     # MARK: Nekomata猫又
@@ -6137,6 +6559,7 @@ hash_commands = {
     '74688145': [(log, ('1.0: Nekomata Swords IB Hash',)), (add_ib_check_if_missing,)],
     '37119851': [(log, ('1.0: Nekomata Face IB Hash',)),   (add_ib_check_if_missing,)],
     #VB
+    'aa036e70': [(log, ('1.0 -> 3.2: Nekomata Face-脸 texcoord_vb Hash',)), (update_hash, ('8bbcb25d',))],
 
     '2c317dda': [(log, ('1.0 -> 1.1: Nekomata Body Position Hash',)),  (update_hash, ('eaad1408',))],
     'b5a4c084': [(log, ('1.0 -> 1.1: Nekomata Body Texcoord Hash',)),  (update_hash, ('f589a51f',))],
@@ -6246,6 +6669,7 @@ hash_commands = {
     '9274e401': [(log, ('2.4 -> 3.01: Nicole Face-脸 draw_vb Hash',)), (update_hash, ('967c2f1c',))],
     'a8667746': [(log, ('2.4 -> 3.01: Nicole Face-脸 position_vb Hash',)), (update_hash, ('ac6ebc5b',))],
     '5714e5e6': [(log, ('2.4 -> 3.01: Nicole Face-脸 texcoord_vb Hash',)), (update_hash, ('d5958556',))],
+    'd5958556': [(log, ('3.01 -> 3.2: Nicole Face-脸 texcoord_vb Hash',)), (update_hash, ('31df6120',))],
 
     # Face脸部
     'd1e84a34': [
@@ -6362,12 +6786,15 @@ hash_commands = {
     '85361021': [(log, ('3.1: Norma Shell IB Hash',)), (add_ib_check_if_missing,)],
     'ca38d6a1': [(log, ('3.1: Norma Weapon IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    'fc98a89c': [(log, ('3.1: Norma Hat-帽子 NormalMap Hash',)), (update_hash, ('ebac056e',))],
-    'dc5bc6d9': [(log, ('3.1: Norma Hat-帽子 NormalMap Hash',)), (update_hash, ('798adba3',))],
-    '37da98f5': [(log, ('3.1: Norma Body-身体 NormalMap Hash',)), (update_hash, ('ebac056e',))],
-    '02cbd89d': [(log, ('3.1: Norma Body-身体 NormalMap Hash',)), (update_hash, ('798adba3',))],
-    '4050da0a': [(log, ('3.1: Norma Weapon-武器 NormalMap Hash',)), (update_hash, ('ebac056e',))],
-    '0139f54e': [(log, ('3.1: Norma Weapon-武器 NormalMap Hash',)), (update_hash, ('798adba3',))],
+    #'7acc7619': [(log, ('3.1 -> 3.2: Norma Eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('d2e41266',))],
+    'b1412ed9': [(log, ('3.1 -> 3.2: Norma Face-脸部 texcoord_vb Hash',)), (update_hash, ('c1bd84e7',))],
+
+    'fc98a89c': [(log, ('3.0 -> 3.1: Norma Hat-帽子 NormalMap Hash',)), (update_hash, ('ebac056e',))],
+    'dc5bc6d9': [(log, ('3.0 -> 3.1: Norma Hat-帽子 NormalMap Hash',)), (update_hash, ('798adba3',))],
+    '37da98f5': [(log, ('3.0 -> 3.1: Norma Body-身体 NormalMap Hash',)), (update_hash, ('ebac056e',))],
+    '02cbd89d': [(log, ('3.0 -> 3.1: Norma Body-身体 NormalMap Hash',)), (update_hash, ('798adba3',))],
+    '4050da0a': [(log, ('3.0 -> 3.1: Norma Weapon-武器 NormalMap Hash',)), (update_hash, ('ebac056e',))],
+    '0139f54e': [(log, ('3.0 -> 3.1: Norma Weapon-武器 NormalMap Hash',)), (update_hash, ('798adba3',))],
 
     '38e511a4': [(log, ('3.0 -> 3.1: Norma Weapon Position Hash',)), (update_hash, ('07e51b64',)),],
     'd3a66db9': [(log, ('3.0 -> 3.1: Norma Weapon Blend Hash',)),    (update_hash, ('aa195b0b',)),],
@@ -6473,6 +6900,7 @@ hash_commands = {
     '80017921': [(log, ('2.1: Orphie Leg IB Hash',)),  (add_ib_check_if_missing,)],    
     'ed85f33b': [(log, ('2.1: Orphie Face IB Hash',)),         (add_ib_check_if_missing,)],
     #VB
+    '48191f72': [(log, ('2.1 -> 3.2: Orphie Face-脸部 texcoord_vb Hash',)), (update_hash, ('615a1f62',))],
 
     #Texture纹理
     # Face脸部
@@ -6744,6 +7172,7 @@ hash_commands = {
     '585da98b': [(log, ('1.0: Piper Body IB Hash',)), (add_ib_check_if_missing,)],
     'e11baad9': [(log, ('1.0: Piper Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '58468aba': [(log, ('1.0 -> 3.2: Piper Face-脸 texcoord_vb Hash',)), (update_hash, ('2fe49591',))],
     '8b6b17f8': [(log, ('1.3 -> 1.4: Piper Hair Texcoord Hash',)), (update_hash, ('1c6d41af',)),],
     'b2f3e6aa': [(log, ('1.1 -> 1.2: Piper Body Position Hash',)), (update_hash, ('ffe8fea7',)),],
     'a0d146b3': [(log, ('1.1 -> 1.2: Piper Body Texcoord Hash',)), (update_hash, ('a011f94e',)),],
@@ -6904,10 +7333,12 @@ hash_commands = {
 
     'cb9d17fc': [(log, ('2.8 -> 2.81: Promeia Eyebrow IB Hash',)),      (update_hash, ('e032287a',)),],
     '3a00aa76': [(log, ('2.8 -> 2.81: Promeia Eyebrow Texcoord Hash',)),(update_hash, ('d3d65ca5',)),],
+    'd3d65ca5': [(log, ('2.81 -> 3.2: Promeia Eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('644e5029',))],
 
     '5ea47a32': [(log, ('2.8 -> 2.81: Promeia Face IB Hash',)),      (update_hash, ('ef3c4506',)),],
     'b7a6479f': [(log, ('2.8 -> 2.81: Promeia Face Texcoord Hash',)),(update_hash, ('dcd61276',)),],
     '5ff41c34': [(log, ('2.8 -> 2.81: Promeia Face Blend Hash',)),   (update_hash, ('bf5b785d',)),],
+    'dcd61276': [(log, ('2.81 -> 3.2: Promeia Face-脸部 texcoord_vb Hash',)), (update_hash, ('6ca475b9',))],
 
     '947ceb88': [(log, ('2.8 -> 2.81: Promeia Weapon IB Hash',)),      (update_hash, ('8995db58',)),],
     '7d76d686': [(log, ('2.8 -> 2.81: Promeia Weapon Draw Hash',)),    (update_hash, ('0a06059e',)),],
@@ -7052,6 +7483,7 @@ hash_commands = {
     '5b30f4da': [(log, ('1.6: Pulchra Mask IB Hash',)), (add_ib_check_if_missing,)],
     '62de5837': [(log, ('1.6: Pulchra Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '2a29bb4e': [(log, ('1.6 -> 3.2: Pulchra Face-脸 texcoord_vb Hash',)), (update_hash, ('75302f6a',))],
     #Texture纹理
     # Face脸部
     '1626aafe': [
@@ -7197,7 +7629,7 @@ hash_commands = {
     'f6e96452': [(log, ('1.1: Qingyi Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
     #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #Face VB取消更新，因为与零号安比冲突
+    #Face 6a492df0取消更新，因为与零号安比冲突
     #'6a492df0': [(log, ('3.1: Qingyi Face-脸 texcoord_vb Hash',)), (update_hash, ('db1f2dfa',))],
     #Remap
     '0643440c': [
@@ -7593,6 +8025,7 @@ hash_commands = {
     '2825da1e': [(log, ('1.0: Rina Body IB Hash',)), (add_ib_check_if_missing,)],
     '9f90cfaa': [(log, ('1.0: Rina Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '1866cf6a': [(log, ('1.0 -> 3.2: Rina Face-脸 texcoord_vb Hash',)), (update_hash, ('a79912e2',))],
 
     #Texture纹理
     # Face脸部
@@ -7678,6 +8111,7 @@ hash_commands = {
     '651f4fd5': [(log, ('2.1: Seed Hoverboard IB Hash',)),  (add_ib_check_if_missing,)],    
     '09d9dca7': [(log, ('2.1: Seed Face IB Hash',)),         (add_ib_check_if_missing,)],
     #VB
+    'a0dfaf80': [(log, ('2.3 -> 3.2: seed Face-脸部 texcoord_vb Hash',)), (update_hash, ('2bcb59f6',))],
 
     #Texture纹理
     # Face脸部
@@ -7938,21 +8372,25 @@ hash_commands = {
     ],
         
     # Hair头发
-    '0c4bea0f': [
-        (log,                           ('3.1: Sigrid HairA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   ('66dbe05f', 'Sigrid.HairA.Diffuse.1024')),
+    '0c4bea0f': [(log, ('3.1 -> 3.2: Sigrid HairA Diffuse 2048p Hash',)), (update_hash, ('f2896dcc',))],
+    'f2896dcc': [
+        (log,                           ('3.2: Sigrid HairA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   (('66dbe05f','cb3525dc'), 'Sigrid.HairA.Diffuse.1024')),
     ],
-    '66dbe05f': [
-        (log,                           ('3.1: Sigrid HairA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   ('0c4bea0f', 'Sigrid.HairA.Diffuse.2048')),
+    '66dbe05f': [(log, ('3.1 -> 3.2: Sigrid HairA Diffuse 1024p Hash',)), (update_hash, ('cb3525dc',))],
+    'cb3525dc': [
+        (log,                           ('3.2: Sigrid HairA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   (('0c4bea0f','f2896dcc'), 'Sigrid.HairA.Diffuse.2048')),
     ],
-    'da6a6f0b': [
-        (log,                           ('3.1: Sigrid HairA LightMap 2048p Hash',)),
-        (multiply_section_if_missing,   ('bc582555', 'Sigrid.HairA.LightMap.1024')),
+    'da6a6f0b': [(log, ('3.1 -> 3.2: Sigrid HairA LightMap 2048p Hash',)), (update_hash, ('16d72691',))],
+    '16d72691': [
+        (log,                           ('3.2: Sigrid HairA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   (('bc582555','d7d68132'), 'Sigrid.HairA.LightMap.1024')),
     ],
-    'bc582555': [
-        (log,                           ('3.1: Sigrid HairA LightMap 1024p Hash',)),
-        (multiply_section_if_missing,   ('da6a6f0b', 'Sigrid.HairA.LightMap.2048')),
+    'bc582555': [(log, ('3.1 -> 3.2: Sigrid HairA LightMap 1024p Hash',)), (update_hash, ('d7d68132',))],
+    'd7d68132': [
+        (log,                           ('3.2: Sigrid HairA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   (('da6a6f0b','16d72691'), 'Sigrid.HairA.LightMap.2048')),
     ],
     'f5da0fcd': [
         (log,                           ('3.1: Sigrid HairA MaterialMap 2048p Hash',)),
@@ -7973,14 +8411,16 @@ hash_commands = {
     
     # Body
     'b07c43ef': [(log, ('3.1 -> 3.1B: SigridSkin BodyA Diffuse 2048p Hash',)), (update_hash, ('8874c184',))],
-    '8874c184': [
-        (log,                           ('3.1B: SigridSkin BodyA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   (('82a7f32e','3a0cfbd4'), 'SigridSkin.BodyA.Diffuse.1024')),
+    '8874c184': [(log, ('3.1B -> 3.2: SigridSkin BodyA Diffuse 2048p Hash',)), (update_hash, ('7c862ede',))],
+    '7c862ede': [
+        (log,                           ('3.2: 3.1B: SigridSkin BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   (('82a7f32e','3a0cfbd4','b97a77bf'), 'SigridSkin.BodyA.Diffuse.1024')),
     ],
     '82a7f32e': [(log, ('3.1 -> 3.1B: SigridSkin BodyA Diffuse 1024p Hash',)), (update_hash, ('3a0cfbd4',))],
-    '3a0cfbd4': [
-        (log,                           ('3.1B: SigridSkin BodyA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   (('b07c43ef','8874c184'), 'SigridSkin.BodyA.Diffuse.2048')),
+    '3a0cfbd4': [(log, ('3.1B -> 3.2: SigridSkin BodyA Diffuse 1024p Hash',)), (update_hash, ('b97a77bf',))],
+    'b97a77bf': [
+        (log,                           ('3.2: 3.1B: SigridSkin BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   (('b07c43ef','8874c184','7c862ede'), 'SigridSkin.BodyA.Diffuse.2048')),
     ],
     '5e907c41': [(log, ('3.1 -> 3.1B: SigridSkin BodyA LightMap 2048p Hash',)), (update_hash, ('2772f644',))],
     '2772f644': [
@@ -8016,8 +8456,9 @@ hash_commands = {
             'trg_indices': ['0', '984', '8442'],
         })],
     #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
-    #Face VB取消更新，因为与青衣冲突
+    #Face 6a492df0取消更新，因为与青衣冲突
     #'6a492df0': [(log, ('1.7 -> 2.0: Soldier0 Face Texcoord Hash',)), (update_hash, ('fc66ecd0',))],
+    'fc66ecd0': [(log, ('2.0 -> 3.2: Soldier0 Face-脸 texcoord_vb Hash',)), (update_hash, ('be99c90e',))],
     #'57c9f0a3': [(log, ('1.7 -> 2.0: Soldier0 Face Blend Hash',)), (update_hash, ('df6b6f84',))],
     #Texture纹理
     # Hair头发
@@ -8092,6 +8533,7 @@ hash_commands = {
     'e3ee72d9': [(log, ('1.0: Soldier11 Body IB Hash',)), (add_ib_check_if_missing,)],
     'bb315c43': [(log, ('1.0: Soldier11 Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '39de00d5': [(log, ('1.0 -> 3.2: Soldier11 Face 脸 texcoord_vb Hash',)), (update_hash, ('f30b174b',))],
 
     #Texture纹理
     # Face脸部
@@ -8177,6 +8619,7 @@ hash_commands = {
 
     '01f7369e': [(log, ('1.0 - 1.1: Soukaku Face IB Hash',)), (update_hash, ('020f9ac6',))],
     'ad41e2f6': [(log, ('1.0 - 1.1: Soukaku Face Texcoord Hash',)), (update_hash, ('c2db08f0',))],
+    'c2db08f0': [(log, ('1.1 -> 3.2: Soukaku Face-脸 texcoord_vb Hash',)), (update_hash, ('b3f1b714',))],
 
     #Texture纹理
     # Face脸部
@@ -8945,16 +9388,18 @@ hash_commands = {
     '84529dab': [(log, ('1.0 -> 1.1: Wise BodyA Diffuse 2048p Hash',)), (update_hash, ('868709f2',))],
     '868709f2': [(log, ('2.6 -> 2.7: Wise BodyA Diffuse 2048p Hash',)), (update_hash, ('f2fb7a37',))],
     'f2fb7a37': [(log, ('2.8 -> 3.0: Wise BodyA Diffuse 2048p Hash',)), (update_hash, ('a9652fa4',))],
-    'a9652fa4': [
-        (log,                           ('1.1: Wise BodyA Diffuse 2048p Hash',)),
-        (multiply_section_if_missing,   (('3d7a53b0', 'ef76b675', 'dea7a8ca', '53b3623f'), 'Wise.BodyA.Diffuse.1024')),
+    'a9652fa4': [(log, ('3.0 -> 3.2: Wise BodyA Diffuse 2048p Hash',)), (update_hash, ('ee65d7bc',))],
+    'ee65d7bc': [
+        (log,                           ('3.2: Wise BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   (('3d7a53b0','ef76b675','dea7a8ca','53b3623f','612c6929'), 'Wise.BodyA.Diffuse.1024')),
     ],
     'ef76b675': [(log, ('1.0 -> 1.1: Wise BodyA Diffuse 1024p Hash',)), (update_hash, ('3d7a53b0',))],
     '3d7a53b0': [(log, ('2.6 -> 2.7: Wise BodyA Diffuse 1024p Hash',)), (update_hash, ('dea7a8ca',))],
     'dea7a8ca': [(log, ('2.8 -> 3.0: Wise BodyA Diffuse 1024p Hash',)), (update_hash, ('53b3623f',))],
-    '53b3623f': [
-        (log,                           ('1.1: Wise BodyA Diffuse 1024p Hash',)),
-        (multiply_section_if_missing,   (('868709f2', '84529dab', 'f2fb7a37', 'a9652fa4'), 'Wise.BodyA.Diffuse.2048')),
+    '53b3623f': [(log, ('3.0 -> 3.2: Wise BodyA Diffuse 1024p Hash',)), (update_hash, ('612c6929',))],
+    '612c6929': [
+        (log,                           ('3.2: Wise BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   (('868709f2','84529dab','f2fb7a37','a9652fa4','ee65d7bc'), 'Wise.BodyA.Diffuse.2048')),
     ],
     '088718a9': [
         (log,                           ('1.0: Wise BodyA LightMap 2048p Hash',)),
@@ -9118,6 +9563,7 @@ hash_commands = {
     # '2d7f2223': [(log, ('1.3: Yanagi Weapon IB Hash',)),  (add_ib_check_if_missing,)],
     '0817204c': [(log, ('1.3: Yanagi Face IB Hash',)),    (add_ib_check_if_missing,)],
     #VB
+    '69c75b70': [(log, ('1.3 -> 3.2: Yanagi Face脸 texcoord_vb Hash',)), (update_hash, ('68efc509',))],
 
     'fd363c76': [(log, ('2.3 -> 2.4: Yanagi Body Blend Hash',)), (update_hash, ('b558d482',))],
 
@@ -9228,8 +9674,10 @@ hash_commands = {
     '869976a3': [(log, ('2.5: YeShunguang Tail IB Hash',)), (add_ib_check_if_missing,)],
     'c28e6303': [(log, ('2.5: YeShunguang Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    #'287c161c': [(log, ('2.5 -> 3.2: YeShunguang Eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('014159dd',))],
+    'a1353cc8': [(log, ('2.5 -> 3.2: YeShunguang Face-脸部 texcoord_vb Hash',)), (update_hash, ('bf705014',))],
 
-    'd1ffd339': [(log, ('2.5 -> 2.5: YeShunguang Texcoord Hash',)), (update_hash, ('dbb027eb',))],
+    'd1ffd339': [(log, ('2.4 -> 2.5: YeShunguang Body Texcoord Hash',)), (update_hash, ('dbb027eb',))],
 
     #Texture纹理
     # Face脸部
@@ -9502,6 +9950,8 @@ hash_commands = {
     '4cb99618': [(log, ('2.3: Yidhair Tail IB Hash',)), (add_ib_check_if_missing,)],
     'a2406060': [(log, ('2.3: Yidhair Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    #'cf1a7297': [(log, ('2.3 -> 3.2: Yidhair eyebrow-眉毛 texcoord_vb Hash',)), (update_hash, ('baf394c7',))],
+    '08316415': [(log, ('2.3 -> 3.2: Yidhair Face-脸 texcoord_vb Hash',)), (update_hash, ('40cdb80f',))],
 
     #Texture纹理
     # Face脸部
@@ -9603,6 +10053,7 @@ hash_commands = {
     '8c2fc05e': [(log, ('2.0: YiXuan Coat IB Hash',)),         (add_ib_check_if_missing,)],
     '8b067f99': [(log, ('2.0: YiXuan Face IB Hash',)),         (add_ib_check_if_missing,)],
     #VB
+    '2e04aac2': [(log, ('2.0 -> 3.2: Yixuan Face-脸 texcoord_vb Hash',)), (update_hash, ('02426764',))],
 
     '0219df6e': [(log, ('2.0 -> 2.1: YiXuan Bottle IB Hash',)),       (update_hash, ('1630f2d0',))],
     'd000beae': [(log, ('2.0 -> 2.1: YiXuan Bottle Draw Hash',)),     (update_hash, ('05466ddf',))],
@@ -9778,7 +10229,7 @@ hash_commands = {
     '73757570': [(log, ('2.1: Yuzuha Legs IB Hash',)),         (add_ib_check_if_missing,)],
     '507384ea': [(log, ('2.1: Yuzuha Face IB Hash',)),         (add_ib_check_if_missing,)],
     #VB
-
+    '9d0f7ef5': [(log, ('2.1 -> 3.2: YuzuhaSkin Face-脸 texcoord_vb Hash',)), (update_hash, ('37a09c33',))],
     #Texture纹理
     # Face脸部
     '59f9e66f': [
@@ -9914,6 +10365,7 @@ hash_commands = {
     '2d519056': [(log, ('2.5: Zhao Hair IB Hash',)), (add_ib_check_if_missing,)],
     '6a57d06b': [(log, ('2.5: Zhao Body IB Hash',)), (add_ib_check_if_missing,)],
     #VB
+    '76c4a041': [(log, ('2.5 -> 3.2: Zhao Face脸 texcoord_vb Hash',)), (update_hash, ('c4618d41',))],
 
     #Texture纹理
     # Face脸部
@@ -9989,6 +10441,8 @@ hash_commands = {
     'a63028ae': [(log, ('1.0: ZhuYuan HipAmmo IB Hash',)),      (add_ib_check_if_missing,)],
     'f1c241b7': [(log, ('1.0: ZhuYuan Face IB Hash',)),         (add_ib_check_if_missing,)],
     #VB    
+    '0c6f696b': [(log, ('1.0 -> 3.2: ZhuYuan Face-脸 texcoord_vb Hash',)), (update_hash, ('cc9f6187',))],
+
     'a4aeb1d5': [(log, ('1.0 -> 1.1: ZhuYuan Body IB Hash',)),  (update_hash, ('6619364f',))],
     'f3569f8d': [(log, ('1.0 -> 1.1: ZhuYuan Body Position Hash',)), (update_hash, ('f595d24d',))],
     '160872c0': [(log, ('1.0 -> 1.1: ZhuYuan Body Texcoord Hash',)), (update_hash, ('cb885260',))],
@@ -10572,6 +11026,8 @@ def _cleanup_stale_old():
 UPD_CMD_NAME = '.upd_apply.cmd'
 UPD_PS1_NAME = '.upd_extract.ps1'
 UPD_FAIL_MARK = '.upd_fail.txt'
+UPD_TMP_DIR = '.upd_new'      # 更新暂存目录：新包先解到这里，验证通过才动程序目录
+UPD_LOG_NAME = 'zzz_fix_upd.log'   # 更新过程日志（写在 %TEMP%，程序目录会被清空）
 DEP_DIR_NAME = '依赖包勿删'   # onedir 依赖目录名（与 一键打包发布.bat 的 --contents-directory 同步维护）
 
 
@@ -10580,11 +11036,71 @@ def _cmd_escape(p):
     return p if '%' not in p else None
 
 
+def _ps_quote(p):
+    """PowerShell 单引号字面量：内含单引号翻倍"""
+    return p.replace("'", "''")
+
+
+def _build_update_ps1(fdir, zip_dest, exe_name):
+    """更新脚本（PowerShell，UTF-8 BOM 供 PS 5.1 正确读中文）。
+    语义：解压到程序目录下的暂存 .upd_new → 验证新 exe 在 → 删程序目录里除保留项
+    之外的全部旧文件（旧版本删掉的文件/目录不再残留）→ 暂存内容搬进程序目录。
+    保留项：本体 exe（直接覆盖）、设置 json、新版 zip（解压源）、更新脚本自身、失败标记。
+    先解压后清理：解压失败时程序目录未被动过，旧程序仍可正常运行。
+    失败写 .upd_fail.txt(原因码) 并以 1 退出，cmd 据此走失败分支"""
+    keep = [exe_name, 'zzz_fix_设置.json', os.path.basename(zip_dest),
+            UPD_CMD_NAME, UPD_PS1_NAME, UPD_FAIL_MARK, UPD_TMP_DIR]
+    lines = [
+        "$ErrorActionPreference = 'Stop'",
+        "$dir  = '{0}'".format(_ps_quote(fdir)),
+        "$zip  = '{0}'".format(_ps_quote(zip_dest)),
+        "$exe  = '{0}'".format(_ps_quote(exe_name)),
+        "$mark = '{0}'".format(UPD_FAIL_MARK),
+        "$tmp  = Join-Path $dir '{0}'".format(UPD_TMP_DIR),
+        "$log  = Join-Path $env:TEMP '{0}'".format(UPD_LOG_NAME),
+        "$keep = @({0})".format(
+            ', '.join("'{0}'".format(_ps_quote(k)) for k in keep)),
+        'function Log($m) {',
+        "  try { Add-Content -LiteralPath $log -Value ((Get-Date -Format 'MM-dd HH:mm:ss')"
+        " + ' ' + $m) -Encoding UTF8 } catch { }",
+        '}',
+        'function Fail($code) {',
+        "  try { Set-Content -LiteralPath (Join-Path $dir $mark)"
+        " -Value ('UPD_FAIL:' + $code) -Encoding ASCII } catch { }",
+        "  Log ('fail ' + $code)",
+        '  exit 1',
+        '}',
+        "Log ('start {0} -> {1}')".format(APP_VERSION, os.path.basename(zip_dest)),
+        'if (Test-Path -LiteralPath $tmp) {',
+        '  try { Remove-Item -LiteralPath $tmp -Recurse -Force } catch { Fail \'CLEAN\' }',
+        '}',
+        'try { New-Item -ItemType Directory -Path $tmp -Force | Out-Null } catch { Fail \'EXTRACT\' }',
+        'try {',
+        '  Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force',
+        "} catch { Fail 'EXTRACT' }",
+        'if (-not (Test-Path -LiteralPath (Join-Path $tmp $exe))) { Fail \'NOEXE\' }',
+        "Log 'extract ok, clean old files'",
+        'try {',
+        '  Get-ChildItem -LiteralPath $dir -Force |',
+        '    Where-Object { $keep -notcontains $_.Name } |',
+        '    Remove-Item -Recurse -Force',
+        "} catch { Fail 'CLEAN' }",
+        "Log 'clean ok, move new files'",
+        'try {',
+        '  Get-ChildItem -LiteralPath $tmp -Force | Move-Item -Destination $dir -Force',
+        "} catch { Fail 'MOVE' }",
+        'Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue',
+        "Log 'update ok'",
+        'exit 0',
+    ]
+    return '\r\n'.join(lines) + '\r\n'
+
+
 def _build_update_cmd(zip_dest):
     """frozen 全自动更新：生成 .upd_apply.cmd（GBK，cmd 默认码页）+ .upd_extract.ps1。
-    cmd 语义：等本进程(PID)退出 → PowerShell 原地解压 zip 覆盖程序目录（zip 保留不删）→
+    cmd 语义：等本进程(PID)退出 → PowerShell 清理旧文件并铺开新版（见 _build_update_ps1）→
     启动新 exe。解压用 PowerShell（系统自带 tar.exe 实测被杀毒拦截，弃用）。
-    任一失败写 .upd_fail.txt 并重启当前 exe。
+    失败原因由 ps1 写 .upd_fail.txt，cmd 仅兜底 UNKNOWN 并重启当前 exe（程序目录多半完好）。
     返回 .cmd 路径；非 frozen / 路径含 % / 写盘失败 → None（调用方走手动解压指引）"""
     if not getattr(sys, 'frozen', False):
         return None
@@ -10597,11 +11113,8 @@ def _build_update_cmd(zip_dest):
     cmd_path = os.path.join(fdir, UPD_CMD_NAME)
     ps1_path = os.path.join(fdir, UPD_PS1_NAME)
     try:
-        # PowerShell 备用解压脚本（tar 缺失时用）；单引号包裹、内含单引号翻倍
-        ps1 = "Expand-Archive -LiteralPath '{0}' -DestinationPath '{1}' -Force".format(
-            zip_dest.replace("'", "''"), fdir.replace("'", "''"))
         with open(ps1_path, 'w', encoding='utf-8-sig') as f:
-            f.write(ps1)
+            f.write(_build_update_ps1(fdir, zip_dest, exe_name))
         lines = [
             '@echo off',
             'chcp 936 >nul',
@@ -10611,7 +11124,6 @@ def _build_update_cmd(zip_dest):
             'set "EXE={fdir}\\{ename}"',
             'set "PS1={ps1}"',
             'set "FIND=%WINDIR%\\System32\\find.exe"',
-            'set "REASON=UNKNOWN"',
             'set /a N=0',
             ':wait',
             'tasklist /fi "PID eq %PID%" /nh | "%FIND%" "%PID%" >nul',
@@ -10624,20 +11136,14 @@ def _build_update_cmd(zip_dest):
             ':waited',
             'taskkill /f /im "{ename}" >nul 2>&1',
             'powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" >nul 2>&1',
-            'if errorlevel 1 goto fail_extract',
-            'if not exist "%EXE%" goto fail_noexe',
+            'if errorlevel 1 goto fail',
+            'if not exist "%EXE%" goto fail',
             'if exist "%PS1%" del /q "%PS1%" >nul 2>&1',
             'cd /d "%DIR%"',
             'start "" "%EXE%"',
             'exit /b 0',
-            ':fail_extract',
-            'set "REASON=EXTRACT"',
-            'goto fail',
-            ':fail_noexe',
-            'set "REASON=NOEXE"',
-            'goto fail',
             ':fail',
-            'echo UPD_FAIL:%REASON%> "%DIR%\\.upd_fail.txt"',
+            'if not exist "%DIR%\\.upd_fail.txt" echo UPD_FAIL:UNKNOWN> "%DIR%\\.upd_fail.txt"',
             'if exist "%PS1%" del /q "%PS1%" >nul 2>&1',
             'start "" "%EXE%"',
             'exit /b 1',
@@ -10654,6 +11160,7 @@ def _build_update_cmd(zip_dest):
             except OSError:
                 pass
         return None
+
 
 
 def _spawn_update_cmd(zip_dest):
@@ -10682,6 +11189,8 @@ def _spawn_update_cmd(zip_dest):
 UPD_FAIL_REASONS = {
     'EXTRACT': '新版解压失败（压缩包损坏或被杀毒软件拦截）',
     'NOEXE':   '新版压缩包里缺少程序主文件',
+    'CLEAN':   '清理旧文件失败（有文件被占用，多为杀毒软件正在扫描）',
+    'MOVE':    '新版文件铺开失败（有文件被占用，多为杀毒软件正在扫描）',
     'UNKNOWN': '原因未知',
 }
 
@@ -10708,9 +11217,15 @@ def _read_update_fail_marker():
 def _update_fail_msg(code):
     """失败码 → 启动提示文案（zip 保留在程序目录可手动处理）"""
     code = code or 'UNKNOWN'
+    tail = ('程序已恢复运行。新版压缩包保留在程序目录，\n'
+            '可手动右键解压覆盖更新。')
+    if code in ('CLEAN', 'MOVE'):
+        # 半更新：旧文件没清干净或新文件没铺完，必须手动解压覆盖才稳妥
+        tail = ('程序目录可能处于半更新状态，请关掉本程序与杀毒软件的实时扫描后，\n'
+                '手动右键解压程序目录里的新版压缩包（选“解压到当前文件夹”、'
+                '提示覆盖全部选“是”）。')
     return ('上次自动更新未完成（{}）。\n'
-            '程序已恢复运行。新版压缩包保留在程序目录，\n'
-            '可手动右键解压覆盖更新。').format(UPD_FAIL_REASONS.get(code, code))
+            '{}').format(UPD_FAIL_REASONS.get(code, code), tail)
 
 
 def cli_check_update(manual=False):
@@ -10744,7 +11259,7 @@ def cli_check_update(manual=False):
     try:
         if info.get('kind') == 'zip':
             ans = input('选择更新方式：\n'
-                        '  a - 自动更新（下载后自动覆盖并重启，约 5~10 秒）\n'
+                        '  a - 自动更新（清掉旧文件后铺开新版并重启，约 5~10 秒）\n'
                         '  m - 手动更新（仅下载压缩包，自行解压替换）\n'
                         '  其他 - 取消\n> ').strip().lower()
             auto_mode = ans in ('a', 'auto', '自动')
@@ -11061,14 +11576,33 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
     二、顶点格式（texcoord）  游戏更新改了顶点格式，老 mod 的 buf 布局对不上
         症状：贴图整体错乱，但模型形状完全正常
         已知需要修复的角色：
-        1.脸部破碎：珂蕾妲、露西、薇薇安、琉音、青衣（需要手动更新hash）、橘福福、扳机、耀嘉音
+        1.脸部破碎：3.1 -> 3.2 更新里 texcoord 变过的那批网格，使用通用脸部修复可解决
+        2.主要是一些角色的脸部容易出现问题
         做法：按目标表重排每个顶点的字节，并同步改 ini 里的 stride
 
     两类互相独立，哪个命中修哪个；都没命中就什么都不做。
 
+两种模式（面板顶上那排按钮切）
+------------------------------------------------
+    索引与顶点修复（默认）
+        就是上面那两类，按“参照文件夹”里选的那组 dump 走，要先选参照。
+
+    通用脸部修复
+        3.1 -> 3.2 更新里 texcoord 变过的那批网格，只有一种变化，写死在程序里，
+        不用填格式，也不用选参照：
+
+            texcoord 里最前面那块顶点 COLOR 4 字节（R8G8B8A8_UNORM）
+            -> 4 个 float，每顶点多 12 字节（旧 36 -> 新 48 字节/顶点）
+
+        认的是内嵌的 53 个网格 / 46 个角色的名单（Hash变动日志里“更新后”那些 hash）。
+        点“通用脸部修复”进去之后：dump 参照 / 参照文件夹两行收起来（这个模式不看参照），
+        主按钮变成“▶ 开始通用脸部修复”；路径栏、日志、还原都是同一套。
+        只动 texcoord buf 和 ini 里那行 stride，骨骼索引（VGX）不碰。
+        想回去点“索引与顶点修复”。
+
 怎么用
 ------------------------------------------------
-    1. 先在“参照文件夹”里选这次用哪一组参照。
+    1. 先在“参照文件夹”里选这次用哪一组参照（通用脸部修复模式跳过这步）。
        分组按【dump 里的文件夹名】走，不按角色合并 —— 一个文件夹 = 一组参照。
        dump\\ 里有几个文件夹就列几组（琉音-脸、琉音-腿、艾莲-腿 ……）。
        只拿这一组的 dump 当参照，不做跨组匹配，所以这一步要选对。
@@ -11120,8 +11654,9 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
 
 dump 参照
 ------------------------------------------------
-    自动读的位置：
-        程序目录下的 dump\\          （没有会自动建一个，里面带一份说明）
+    自动读的位置（没有的话程序不会替你建，提示一下就完事）：
+        程序目录下的 dump\\          （exe 旁边；源码跑时 = 源码旁边）
+        程序目录的上一级\\dump\\     （源码放在 py代码\\ 这类子目录里时用这个）
         索引与顶点修复工具\\dump\\   （旧位置，有数据就用）
     也可以点“选择 dump 文件夹”或直接把 dump 文件夹拖进窗口
     （有 .json、没有 .ini 会被认出来），选过的目录会记住，下次启动自动读。
@@ -11182,7 +11717,8 @@ dump 参照
 #      相比原脚本的改动：
 #        1. main / drag_drop_loop 改名 iv_main / iv_drag_drop_loop（避开本文件重名）
 #        2. SCRIPT_DIR 指向程序目录（打包后是 exe 所在目录），dump\ 也从这里找，
-#           并兼容同级 索引与顶点修复工具\dump\ 旧位置
+#           并兼容同级 索引与顶点修复工具\dump\ 旧位置；上一级（源码在 py代码\ 里时）
+#           也扫。dump\ 不再自动创建：没有就打印提示，位置说清楚就行
 #        3. 去掉原脚本开 ANSI 的 os.system('')（GUI 下会闪控制台窗口）
 #        4. 提问点（表/dump 冲突、写前确认）改为可替换的 IV_ASKER：
 #           没装 = 命令行问答（行为与独立脚本一致），GUI 装对话框实现
@@ -11204,6 +11740,12 @@ from pathlib import Path
 
 SCRIPT_DIR = (Path(sys.executable).resolve().parent
               if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent)
+
+# dump\ 从哪找：程序目录优先，再把上一级也带上 ——
+# 源码放在 py代码\ 这类子目录里时，dump\ 通常和 exe 一起放在外面。
+APP_DIRS = [SCRIPT_DIR]
+if SCRIPT_DIR.parent not in APP_DIRS:
+    APP_DIRS.append(SCRIPT_DIR.parent)
 
 CONFIRM_WORD = 'queren'
 EXIT_WORDS = ('exit', 'quit', 'q', '退出')
@@ -11426,6 +11968,88 @@ TEX_MARKER_SUFFIX = '.texfmt_DONE.empty'
 TEX_INI_BACKUP_SUFFIX = '.texfmt.bak'
 TEX_LEGACY_BACKUP_SUFFIX = '.tex48_BACKUP.buf'    # 旧版工具留下的，还原时也认
 TEX_LEGACY_INI_BACKUP_SUFFIX = '.tex48.bak'
+
+# ==========================================================================
+#  表三：通用脸部修复（3.1 -> 3.2 更新里 texcoord 变过的那批网格）
+#
+#  只有一种变化，写死在代码里，不用填 old_format / new_format：
+#      texcoord buf 最前面那块顶点 COLOR：4 字节（R8G8B8A8_UNORM）-> 4 个 float
+#      每顶点多 12 字节        旧 36 字节/顶点 -> 新 48 字节/顶点
+#
+#  hash 用【变动日志里"更新后"的 texcoord hash】（新 hash）。程序只认这张表，
+#  不去读外面的日志文件。
+#  加新角色 / 新网格：把日志里那行 "texcoord_vb: 旧 -> 新" 抄进来。
+#
+#      新 hash: (旧 hash, 是哪个网格)
+#
+#  和 TEXCOORD_TARGETS 的分工：那张表一条一条写 name / hash / 格式，什么形状
+#  都能修；这张只认 36 -> 48 这一种，但一条只用写 hash 和一个名字。
+#  「通用脸部修复」模式下只用这张表，不看 dump 参照（有 dump 也只是借它的
+#  blend hash 反推顶点数）。
+# ==========================================================================
+
+UNIVERSAL_HASHES = {
+    '014159dd': ('287c161c', '叶瞬光-皮肤YeShunguangSkin / IB 611df76d 眉毛'),
+    '01b43c04': ('ffac76ac', '耀佳音Astra / IB 51831437 脸'),
+    '02426764': ('2e04aac2', '仪玄-皮肤YixuanSkin、仪玄Yixuan / IB 8b067f99 脸'),
+    '0749a6d7': ('7c9dbd4a', '爱丽丝-皮肤AliceSkin、爱丽丝Alice / IB b078ff22 脸部'),
+    '0aacc89a': ('99d2733a', '雨果Hugo / IB 66b936fc 脸'),
+    '1132301e': ('d4a12ab7', '扳机Trigger / IB 40cd4182 脸'),
+    '20095c2e': ('48152e31', '浅羽悠真Harumasa / IB b0688334 脸'),
+    '27fd9193': ('d90368ed', '琉音Dialyn / IB d860525e 眉毛'),
+    '2bc69f3c': ('dfc76798', '希希芙Cissia / IB d1a31f0b 脸部'),
+    '2bcb59f6': ('a0dfaf80', '席德seed / IB 09d9dca7 脸部'),
+    '2fe49591': ('58468aba', '派派Piper / IB e11baad9 脸'),
+    '31df6120': ('d5958556', '妮可-皮肤NicoleSkin、妮可Nicole / IB 93b02078 脸'),
+    '325bb10f': ('0fd41a37', '狛野真斗Manato / IB f987f156 脸'),
+    '37a09c33': ('9d0f7ef5', '浮波柚叶-皮肤YuzuhaSkin、浮波柚叶Yuzuha / IB 507384ea 脸'),
+    '3e7815b5': ('f818271a', '安比Anby / IB 19df8e84 脸'),
+    '40cdb80f': ('08316415', '伊德海莉Yidhair / IB a2406060 脸'),
+    '43cb221f': ('9648c6d3', '卢西娅Lucia / IB 6986f28e 脸'),
+    '50c5d703': ('0afe5a44', '薇薇安Vivian、薇薇安-皮肤VivianSkin / IB 39944f20 脸'),
+    '558c7001': ('144828a7', '安东Anton / IB a0201907 脸'),
+    '57994826': ('f41b27e6', '珂蕾妲Koleda / IB 0e74656e 脸'),
+    '60732ab5': ('7a476f86', '星见雅-皮肤MiyabiSkin / IB dbd59d30 脸部'),
+    '615a1f62': ('48191f72', '奥菲丝Orphie / IB ed85f33b 脸部'),
+    '61782f72': ('14b70725', '柏妮思Burnice / IB b3f6fcb3 脸'),
+    '63481380': ('c3b7516b', '格莉丝Grace / IB 4d60568b 脸'),
+    '644e5029': ('d3d65ca5', '普罗米娅Promeia / IB e032287a 眉毛'),
+    '68efc509': ('69c75b70', '月城柳Yanagi / IB 0817204c Face脸'),
+    '6ca475b9': ('dcd61276', '普罗米娅Promeia / IB ef3c4506 脸部'),
+    '75302f6a': ('2a29bb4e', '波可娜Pulchra / IB 62de5837 脸'),
+    '768c9ec4': ('8267358b', '橘福福jufufu / IB 321768df 脸'),
+    '8bbcb25d': ('aa036e70', '猫又Nekomata / IB 37119851 脸'),
+    '9e121fda': ('05342ce9', '卢西娅Lucia / IB 84eaa4c6 眉毛'),
+    'a79912e2': ('1866cf6a', '丽娜Rina / IB 9f90cfaa 脸'),
+    'ac48fc8a': ('158fa3f3', '艾莲Ellen / IB f6ef8f3a Face脸'),
+    'aeeeaa7f': ('b7d38cbb', '爱芮-皮肤ArieSkin、爱芮Arie / IB c0b0db5f 眉毛'),
+    'b3136c51': ('aa2f560e', '伊芙琳Evelyn / IB ddf4efa6 脸'),
+    'b3f1b714': ('c2db08f0', '苍角Soukaku / IB 020f9ac6 脸'),
+    'b50b51c0': ('3adaebb3', '莱卡恩Lycaon / IB 6ffdfccb Face脸'),
+    'b8af50ce': ('45910aef', '南宫羽-皮肤NanGongYuSkin、南宫羽NanGongYu / IB d643e19a 脸部'),
+    'baf394c7': ('cf1a7297', '伊德海莉Yidhair / IB 02072970 眉毛'),
+    'be99c90e': ('fc66ecd0', '零号安比Soldier0 / IB e30ca87f 脸'),
+    'bf705014': ('a1353cc8', '叶瞬光-皮肤YeShunguangSkin、叶瞬光YeShunguang、叶瞬光白毛YeShunguangWrite / IB c28e6303 脸部'),
+    'c1bd84e7': ('b1412ed9', '诺姆Norma / IB 4fafb136 脸部'),
+    'c4618d41': ('76c4a041', '照Zhao / IB 43c3c5a0 Face脸'),
+    'c493b91c': ('39d7123a', '爱芮-皮肤ArieSkin、爱芮Arie / IB 27966f80 脸部'),
+    'cc9f6187': ('0c6f696b', '朱鸢ZhuYuan / IB f1c241b7 脸'),
+    'd2e41266': ('7acc7619', '诺姆Norma / IB d3b2ed9a 眉毛'),
+    'dafc9647': ('f6c5296e', '琉音Dialyn / IB facb2461 脸部'),
+    'daff87b1': ('1c0725e4', '可琳Corin / IB a0c80593 Face脸'),
+    'e56b3fdf': ('f87ddcae', '艾莲-皮肤EllenSkin / IB f6ef8f3a 脸'),
+    'e619a2b8': ('9772ccda', '爱芮智能体-皮肤ArieAgentSkin、爱芮智能体ArieAgent / IB ffa703e8 脸部'),
+    'f30b174b': ('39de00d5', '11号Soldier11 / IB bb315c43 Face 脸'),
+    'f5ce8320': ('506dc9e1', '千夏-皮肤ChinatsuSkin、千夏Chinatsu / IB 1a2c8573 脸部'),
+    'fd41220d': ('e3cc1981', '千夏-皮肤ChinatsuSkin、千夏Chinatsu / IB 30ea5791 眉毛'),
+}
+
+UNIVERSAL_OLD_FORMAT = ('4B', '2f', '2f', '2f', '2f')   # 36 字节/顶点
+UNIVERSAL_NEW_FORMAT = ('4f', '2f', '2f', '2f', '2f')   # 48 字节/顶点
+
+# 这次用哪套：'normal' = 索引与顶点修复（VGX + 格式表/参照）
+#            'universal' = 通用脸部修复（只认 UNIVERSAL_HASHES，36 -> 48）
+FIX_MODE = 'normal'
 
 # ==========================================================================
 #  可选：dump 文件夹
@@ -12006,6 +12630,96 @@ def validate_texcoord() -> bool:
     return ok
 
 
+def validate_universal() -> bool:
+    """通用脸部修复那张名单自查：hash 格式、格式元组是不是还写着 36 -> 48"""
+    ok = True
+    seen = {}
+    for new_hash, (old_hash, label) in sorted(UNIVERSAL_HASHES.items()):
+        for tag, value in (('新', new_hash), ('旧', old_hash)):
+            if not re.fullmatch(r'[0-9a-fA-F]{8}', str(value)):
+                print(c('[配置错误] 通用脸部修复 {}: {} hash "{}" 不是 8 位十六进制'.format(
+                    label, tag, value), Style.RED))
+                ok = False
+        key = str(new_hash).lower()
+        if key in seen:
+            print(c('[配置警告] 通用脸部修复 hash {} 被 "{}" 和 "{}" 同时使用'.format(
+                key, seen[key], label), Style.YELLOW))
+        seen[key] = label
+
+    old_stride = fmt_stride(UNIVERSAL_OLD_FORMAT)
+    new_stride = fmt_stride(UNIVERSAL_NEW_FORMAT)
+    if (old_stride, new_stride) != (36, 48):
+        print(c('[配置错误] 通用脸部修复的格式元组算出 {} -> {} 字节/顶点，应该是 36 -> 48'.format(
+            old_stride, new_stride), Style.RED))
+        ok = False
+    return ok
+
+
+def universal_targets() -> list:
+    """把 UNIVERSAL_HASHES 转成 TEXCOORD_TARGETS 那种条目（格式固定，不用填）
+
+    有 dump 的话顺手借它的 blend hash 反推顶点数（不依赖文件命名），没有也能跑。
+    """
+    rows = []
+    for new_hash, (old_hash, label) in sorted(UNIVERSAL_HASHES.items()):
+        key = new_hash.lower()
+        entry = {
+            'name': '{}（通用脸部修复）'.format(label),
+            'hash': key,
+            'hash_note': '{} -> {}'.format(old_hash.lower(), key),
+            'old_format': UNIVERSAL_OLD_FORMAT,
+            'new_format': UNIVERSAL_NEW_FORMAT,
+            'universal': True,
+        }
+        info = DUMP_MESHES.get(key)
+        if info and info.get('blend_hash'):
+            entry['blend_hash'] = info['blend_hash']
+        rows.append(entry)
+    return rows
+
+
+def universal_old_map() -> dict:
+    """旧 hash -> 新 hash（认"ini 里 hash 还是旧的"用）"""
+    return {old_hash.lower(): new_hash.lower()
+            for new_hash, (old_hash, _label) in UNIVERSAL_HASHES.items()}
+
+
+def universal_old_hash_hits(target: Path):
+    """通用脸部修复：ini 里 hash 还是旧的那种 -> 提醒先跑版本Hash修复
+
+    返回 [(ini 路径, [命中的旧 hash, ...])]，一个 ini 只收一条（不逐节刷屏）。
+    """
+    old_map = universal_old_map()
+    result = []
+    for ini_path in find_ini_files(target):
+        try:
+            text = ini_path.read_text(encoding='utf-8', errors='replace')
+        except Exception:
+            continue
+        found = []
+        for match in HASH_LINE_RE.finditer(text):
+            value = match.group(1).lower()
+            if value in old_map and value not in found:
+                found.append(value)
+        if found:
+            result.append((ini_path, found))
+    return result
+
+
+def universal_color_stats(buf: Path, count: int, stride: int):
+    """颜色块小统计：多少顶点颜色全 0、多少个不同取值（只看，不拦）"""
+    color_bytes = fmt_stride(UNIVERSAL_OLD_FORMAT[:1])
+    data = buf.read_bytes()
+    zero = 0
+    kinds = set()
+    for index in range(count):
+        block = data[index * stride:index * stride + color_bytes]
+        if not any(block):
+            zero += 1
+        kinds.add(block)
+    return zero, len(kinds)
+
+
 HASH_LINE_RE = re.compile(r'(?m)^[ \t]*hash[ \t]*=[ \t]*([0-9a-fA-F]{8})[ \t]*$')
 VB_LINE_RE = re.compile(r'(?mi)^[ \t]*(vb0|vb1|vb2|run)[ \t]*=[ \t]*(.+?)[ \t]*$')
 
@@ -12211,16 +12925,30 @@ def load_dump_folder(folder: Path):
     return meshes
 
 
+def dump_places() -> list:
+    """dump\\ 能放的几个位置（程序目录 + 上一级），按优先级从低到高 ——
+    两处有同名网格时，后面那份说了算。"""
+    places = []
+    for base in APP_DIRS:
+        folder = base / DUMP_DIR_NAME
+        if folder not in places:
+            places.append(folder)
+    return places
+
+
 def dump_roots():
     r"""要自动扫描的 dump 根目录，按优先级从低到高（后面的覆盖前面的同名网格）：
     旧位置 索引与顶点修复工具\dump\（有就用，照顾老用户）
-        -> 本程序目录下的 dump\   <- 正式位置，以后就用它
+        -> 程序目录下的 dump\   <- 正式位置，以后就用它
+        -> 上一级的 dump\（源码放在 py代码\ 子目录时的位置）
         -> DUMP_DIRS 里配置的 / 运行时选的"""
     roots = []
-    legacy = SCRIPT_DIR / '索引与顶点修复工具' / DUMP_DIR_NAME
-    if legacy.is_dir():
-        roots.append(legacy)
-    roots.append(SCRIPT_DIR / DUMP_DIR_NAME)
+    for folder in dump_places():
+        legacy = folder.parent / '索引与顶点修复工具' / DUMP_DIR_NAME
+        if legacy.is_dir():
+            roots.append(legacy)
+        if folder not in roots:
+            roots.append(folder)
     for raw in DUMP_DIRS:
         path = Path(raw)
         if path not in roots:
@@ -12331,82 +13059,22 @@ def choose_character():
         print(c('  没有这个序号。', Style.YELLOW))
 
 
-DUMP_README = r"""dump 文件夹 —— 各组参照的网格信息（贴图错乱修复用）
-================================================
+def dump_hint():
+    """没有 dump 时不建文件夹，只提示放哪儿
 
-普通用户
-    不用动这里，也不用自己做任何操作。这是作者放好的数据，
-    程序启动时自动读 —— 你直接把 mod 文件夹拖进程序窗口就行。
-
-    这个文件夹就在程序（exe）旁边；删了下次启动会自动重建一个空的。
-    更新程序时它会跟着新版一起换，别在这里放自己的东西。
-
-    里面缺哪个角色/哪个网格，反馈给作者补一份即可。
-    （进游戏抓 dump 是作者的事，不需要你来做。）
-
-    作者提供了哪些参照，启动时程序会列出来：
-        dump 已读：3 个网格，参照：琉音-脸、艾莲-腿、露西-脸
-
-作者（维护这个文件夹的人）
-    把 F8 抓的 Frame Analysis dump 的 json 丢进来，**一个参照一个子文件夹**：
-
-        dump\
-            琉音-脸\
-                琉音-脸.json
-            艾莲-腿\
-                d44a8015-24321-0.json
-
-    分组按【文件夹名】走，不按角色合并 —— 一个文件夹 = 一组参照 =
-    一次修复的范围。所以同一角色的不同部位/不同 mod 各放一个文件夹，
-    名字写成「角色-部位」，下拉里就是一组一条：
-        琉音-脸、琉音-腿、艾莲-腿 ……  而不是合并成一个「琉音」。
-    合并了的话，选「琉音」会把已经修过的「琉音-腿」一起带上，
-    同一个网格会被修第二遍 —— 所以千万别按角色合到同一个文件夹里。
-
-    文件夹名只用来在输出里显示，随便改，json 内容不依赖文件名。
-    整个 3DMigoto 那种嵌套目录（<ib hash>-<n>-<i>\TYPE_...\xxx.json）
-    直接拷过来也行，程序会递归找，一级文件夹名当组名。
-
-    抓法：游戏里进到该角色的画面，按 F8 抓 Frame Analysis，在 3DMigoto 的
-    FrameAnalysis 文件夹里找到该网格的 json（文件名形如
-    <ib hash>-<索引数>-<首个索引>.json），复制过来。
-
-    顺带也管骨骼索引（VGX，腿弯 / 塌陷 / 扭曲）：
-    同一个网格文件夹里再放上它的 -*Blend.buf 和 -*Position.buf，工具就能拿
-    dump 当参照自动推索引映射 —— mod 的网格通常是游戏原网格的细分版，
-    位置对得上，于是逐顶点投票，把 mod 的旧索引对上 dump 的新索引。
-
-        json          该网格的 CategoryHash（定位 mod 那边是哪个 buf）
-        -*Blend.buf   新编号的骨骼索引（投票的目标）
-        -*Position.buf 位置（配对用，缺了这个就推不了）
-
-    抓 dump 时这三样本来就在同一个 TYPE_ 目录里，整个文件夹拷过来即可。
-
-    实测琉音身体：mod 351810 顶点 / 游戏 15715 顶点，位置最近距离中位
-    0.0033（身高的约 0.3%），推出来的映射和已知的表比对 25/26 一致。
-
-注意
-    - json 要能看到这个网格的 texcoord，抓的时候别选错 draw
-    - 前提仍然是 mod 的 ini 里 hash 已经是当前值（先跑版本修复工具），
-      VGX 自动推也是靠 dump 的 CategoryHash 去 ini 里定位 buf 的
-    - 表里和 dump 里都能修同一个网格时，程序会问一次用哪个
-      （texcoord 默认表，由 PREFER_DUMP 决定；VGX 默认推荐表）
-    - 表里没有、只有 dump 能推的网格，程序会问一次要不要用 dump 推的修
-"""
-
-
-def ensure_dump_dir():
-    """本程序目录下的 dump\\ 不存在就建一个，附一份说明。
-    这是 dump 的正式位置：打包时整个文件夹随包发，自动更新也跟着 zip 一起更。
-    旧位置（索引与顶点修复工具\\dump\\）只是兼容，读到就用，不再往那边放东西。"""
-    folder = SCRIPT_DIR / DUMP_DIR_NAME
-    try:
-        folder.mkdir(exist_ok=True)
-        readme = folder / '说明.txt'
-        if not readme.exists():
-            readme.write_text(DUMP_README, encoding='utf-8')
-    except Exception:
-        pass
+    原来这里是"没有就自动建一个空的 + 塞一份说明"，去掉了：
+    自动建的位置一错（源码在子目录、exe 在别处），用户看到的是"空 dump 已就绪"，
+    会以为是作者没放数据。宁可什么都不建，把位置说清楚。
+    """
+    places = dump_places()
+    print(c('dump\\ 里没有数据。', Style.YELLOW))
+    print('  这个文件夹程序不自动建，自己放一份就行（两处都认，都有时后者优先）：')
+    for folder in places:
+        print('    {}'.format(folder))
+    print('  一个参照一个子文件夹（名字写成「角色-部位」），里面放游戏内 F8 抓的 json；')
+    print('  要推骨骼索引（VGX）就再放同一网格的 -*Blend.buf 和 -*Position.buf。')
+    print('  没有它也能用：表里写死的那些网格照旧能修，只有靠 dump 推的认不出来。')
+    print()
 
 
 def load_dump_into_session(folder: Path):
@@ -12532,17 +13200,13 @@ def conflicts_differ():
     return result
 
 
-def tex_plan(target: Path, use_dump_for_conflicts: bool = None):
-    """按 hash 定位目标网格，返回 (待改列表, 已跳过条数, 错误)"""
-    ini_filepaths = find_ini_files(target)
-    if not ini_filepaths:
-        return [], 0, '没找到 ini 文件'
+def target_entries(use_dump_for_conflicts: bool = None) -> list:
+    """常规模式这次能用的目标：表里的 + dump 里多出来的
 
+    两边都有的网格：按 PREFER_DUMP（或用户当场选的）留一个。
+    """
     if use_dump_for_conflicts is None:
         use_dump_for_conflicts = PREFER_DUMP
-
-    # 目标 = 表里的 + dump 里多出来的
-    # 两边都有的：按 PREFER_DUMP（或用户当场选的）留一个
     skip_from_dump = set() if use_dump_for_conflicts else table_hashes()
     skip_from_table = table_hashes() if use_dump_for_conflicts else set()
 
@@ -12552,6 +13216,21 @@ def tex_plan(target: Path, use_dump_for_conflicts: bool = None):
         if tex_hash in skip_from_dump:
             continue
         entries.append(dump_entry(tex_hash, info))
+    return entries
+
+
+def tex_plan(target: Path, use_dump_for_conflicts: bool = None, entries: list = None):
+    """按 hash 定位目标网格，返回 (待改列表, 已跳过条数, 错误)
+
+    entries 给了就用它（通用脸部修复模式给的是 UNIVERSAL_HASHES 那张名单），
+    没给就按常规模式自己拼（表 + dump）。
+    """
+    ini_filepaths = find_ini_files(target)
+    if not ini_filepaths:
+        return [], 0, '没找到 ini 文件'
+
+    if entries is None:
+        entries = target_entries(use_dump_for_conflicts)
 
     items = []
     seen = set()
@@ -12663,6 +13342,8 @@ def tex_plan(target: Path, use_dump_for_conflicts: bool = None):
         do_stride = (item['stride'] == old_stride)
 
         print('- [格式] {}  "{}"'.format(label, buf))
+        if item['target'].get('hash_note'):
+            print('        认得它：hash {}'.format(c(item['target']['hash_note'], Style.GREEN)))
         print('        格式 {} -> {} 字节/顶点   顶点数 {}（{}）'.format(
             old_stride, new_stride, count, from_what))
         if inferred is not None:
@@ -12959,6 +13640,97 @@ def apply_fix(target: Path):
     print('备份后缀: {} / {}'.format(VGX_BACKUP_SUFFIX, TEX_BACKUP_SUFFIX))
 
 
+def apply_universal(target: Path):
+    """通用脸部修复：认内嵌名单的 hash，把 texcoord buf 从 36 改成 48 字节/顶点
+
+    只动 texcoord buf（和 ini 里那行 stride）；骨骼索引（VGX）这次不碰。
+    不看参照 —— 有 dump 也只是借它的 blend hash 反推顶点数。
+    """
+    print('目录: {}'.format(target))
+    print('通用脸部修复名单 {} 个网格 / {} 个角色'.format(
+        len(UNIVERSAL_HASHES), len({label.split(' / ')[0].strip() or label
+                                    for _old, label in UNIVERSAL_HASHES.values()})))
+    print('固定改法：顶点 COLOR 4 字节 -> 4 个 float，每顶点 {} -> {} 字节'.format(
+        fmt_stride(UNIVERSAL_OLD_FORMAT), fmt_stride(UNIVERSAL_NEW_FORMAT)))
+    print('（这个模式只动 texcoord buf；骨骼索引 VGX 不碰）')
+    print()
+
+    if not validate_universal():
+        print()
+        print(c('名单里有写错的地方，先改好再跑。已中止。', Style.RED))
+        return
+
+    # ini 里 hash 还是旧的那种 -> 先跑版本Hash修复，不然按 hash 找不到节
+    old_hits = universal_old_hash_hits(target)
+    if old_hits:
+        old_map = universal_old_map()
+        print(c('注意：这些 ini 里的 hash 还是旧的 —— 先跑一遍「版本Hash修复」把 hash 更新到最新：',
+                Style.YELLOW))
+        for ini_path, hashes in old_hits[:5]:
+            try:
+                where = str(ini_path.relative_to(target))
+            except ValueError:
+                where = str(ini_path)
+            sample = '、'.join(c('{} -> {}'.format(h, old_map[h]), Style.GREEN)
+                               for h in hashes[:3])
+            print('  - {}: {} 个节的 hash 还是旧的（{}{}）'.format(
+                where, len(hashes), sample, ' …' if len(hashes) > 3 else ''))
+        if len(old_hits) > 5:
+            print('  … 另有 {} 个 ini'.format(len(old_hits) - 5))
+        print()
+
+    print('===== texcoord 顶点格式（通用脸部修复） =====')
+    tex_items, _tex_skipped, tex_error = tex_plan(target, entries=universal_targets())
+    if tex_error:
+        print(c('（{}）'.format(tex_error), Style.YELLOW))
+    elif not tex_items:
+        print('（没有命中的网格，或都已经处理过了）')
+    print()
+
+    # 漏网提醒：看着还是旧格式、但没认到名单里的 hash
+    old_stride = fmt_stride(UNIVERSAL_OLD_FORMAT)
+    planned_paths = {str(item['buf'].resolve()) for item in tex_items}
+    others = [path for path, per in tex_inventory(target)
+              if per == old_stride and str(path.resolve()) not in planned_paths]
+    if others:
+        print(c('注意：下面这些 texcoord 看着还是旧格式（{} 字节/顶点），但没认到名单里的 hash，'
+                '工具不会动：'.format(old_stride), Style.YELLOW))
+        for path in others[:8]:
+            print('  - "{}"'.format(path))
+        if len(others) > 8:
+            print('  … 另有 {} 个'.format(len(others) - 8))
+        print('  两种原因：① 这个网格不在这批通用脸部修复里（或者 hash 又变了，表没跟上）')
+        print('            ② mod 的 ini 里 hash 还是旧的 —— 先跑「版本Hash修复」')
+        print()
+
+    if not tex_items:
+        print(c('没有需要处理的文件。', Style.YELLOW))
+        return
+
+    print('颜色块小统计（只看，不拦）：')
+    for item in tex_items:
+        zero, kinds = universal_color_stats(item['buf'], item['count'], item['old_stride'])
+        print('  {}: 全 0 的顶点 {} / {}，{} 种取值'.format(
+            item['buf'].name, zero, item['count'], kinds))
+    print()
+
+    summary = '将修改：texcoord 顶点格式 {} 个 buf（改前都会备份）'.format(len(tex_items))
+    print(c('不要对不需要修复的 mod 运行本工具!!!', Style.RED))
+    print(c('不要在同一个 buf 上运行两次!!!', Style.RED))
+    if not iv_asker().confirm(summary):
+        print(c('已取消，没有改动任何文件。', Style.YELLOW))
+        return
+
+    print()
+    print('应用格式重排中...')
+    tex_apply(tex_items, len(tex_items), 0)
+
+    print()
+    print(c('完成!', Style.GREEN))
+    print('备份后缀: {} / {} / {}'.format(
+        TEX_BACKUP_SUFFIX, TEX_MARKER_SUFFIX, TEX_INI_BACKUP_SUFFIX))
+
+
 # ==========================================================================
 #  五、界面
 # ==========================================================================
@@ -13028,6 +13800,8 @@ def ask_action(target: Path):
 def run_once(action, target: Path):
     if action == 'restore':
         restore(target)
+    elif FIX_MODE == 'universal':
+        apply_universal(target)
     else:
         apply_fix(target)
 
@@ -13116,8 +13890,9 @@ def iv_main():
     print(c('索引与顶点修复工具  ·  VGX 骨骼索引 + texcoord 顶点格式', Style.CYAN))
     print()
 
-    ensure_dump_dir()
     refresh_dumps()
+    if not ALL_DUMPS:
+        dump_hint()
 
     if paths:
         set_active_dumps(None)          # 命令行调用不提问，有多少用多少
@@ -13297,6 +14072,19 @@ class IvGuiAsker:
             pass
 
 
+# 索引与顶点修复面板底部那行「注意」，两种模式各一份
+IV_NOTE_IV = (
+    '注意：一次只处理一个 mod 的文件夹，别把整个 Mods 目录拖进来；同一个 buf 不要修两次；'
+    'ini 里的 hash 要先跑「版本Hash修复」更新到最新；参照按 dump 里的文件夹分组'
+    '（一个文件夹一组，不按角色合并），mod 里的 hash 命中本次这组参照的任意一个才放行，'
+    '选错整包不处理。')
+IV_NOTE_FACE = (
+    '注意：一次只处理一个 mod 的文件夹，别把整个 Mods 目录拖进来；同一个 buf 不要修两次；'
+    'ini 里的 hash 要先跑「版本Hash修复」更新到最新（hash 还是旧的话一个都对不上）。'
+    '通用脸部修复不看参照，认的是内嵌的那批网格名单：顶点 COLOR 4 字节 -> 4 个 float'
+    '（每顶点 36 -> 48），只动 texcoord buf，骨骼索引（VGX）不碰。')
+
+
 class App:
     def __init__(self, root, initial_paths=None):
         self.root = root
@@ -13354,7 +14142,6 @@ class App:
         self._upd_info = None           # 待处理新版的信息（按钮点击时直接用，免重新查）
         self._upd_flash = False         # 按钮闪烁相位
         _cleanup_stale_old()            # 清理上次更新残留
-        ensure_dump_dir()               # dump 正式位置在程序目录：启动就摆好，不等切到索引标签
         code = _read_update_fail_marker()
         if code:
             # 上次全自动更新失败：提示一次并删标记（zip 仍留在程序目录可手动解压）
@@ -13468,6 +14255,11 @@ class App:
             pass
         try:
             self._rail_sync()
+        except Exception:
+            pass
+
+        try:
+            self._iv_mode_sync()
         except Exception:
             pass
 
@@ -13766,9 +14558,25 @@ class App:
     # ---------------- 索引与顶点修复：独立面板 ----------------
     def _build_iv_panel(self, host):
         """索引与顶点修复的独立面板：自己的路径栏、dump 参照、参照组选择。
-        日志窗口、进度条、状态行与版本Hash修复共用。"""
+        日志窗口、进度条、状态行与版本Hash修复共用。
+        面板顶上两个按钮切模式：索引与顶点修复 / 通用脸部修复（通用脸部修复不用参照）。"""
+        # ---- 模式切换：索引与顶点修复 / 通用脸部修复 ----
+        mbar = tk.Frame(host, bg=BG)
+        mbar.pack(fill='x', padx=12, pady=(10, 0))
+        tk.Label(mbar, text='修复模式', bg=BG, fg=DIM, font=(FONT, 9)).pack(
+            side='left', padx=(4, 10))
+        self.iv_mode = 'normal'
+        self.iv_mode_btns = []
+        for mode, text in (('normal', '索引与顶点修复'), ('universal', '通用脸部修复')):
+            b = tk.Button(mbar, text=text, relief='flat', cursor='hand2',
+                          font=(FONT, 9, 'bold'), padx=12, pady=5, highlightthickness=0,
+                          bg=CARD, fg=TEXT, activebackground=CARD2, activeforeground=TEXT,
+                          command=lambda m=mode: self._iv_set_mode(m))
+            b.pack(side='left', padx=(0, 6))
+            self.iv_mode_btns.append((b, mode))
+
         card = tk.Frame(host, bg=CARD)
-        card.pack(fill='x', padx=12, pady=(10, 0))
+        card.pack(fill='x', padx=12, pady=(6, 0))
         card.columnconfigure(1, weight=1)
         tk.Label(card, text='修复目标路径', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
             row=0, column=0, padx=(14, 8), pady=(8, 3), sticky='w')
@@ -13782,8 +14590,8 @@ class App:
                             '也可以直接把文件夹拖进窗口。',
                  bg=CARD, fg=DIM, font=(FONT, 8), justify='left').grid(
             row=1, column=0, columnspan=4, padx=14, pady=(0, 3), sticky='w')
-        tk.Label(card, text='dump 参照', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
-            row=2, column=0, padx=(14, 8), pady=(3, 3), sticky='w')
+        self.iv_dump_title = tk.Label(card, text='dump 参照', bg=CARD, fg=TEXT, font=(FONT, 9))
+        self.iv_dump_title.grid(row=2, column=0, padx=(14, 8), pady=(3, 3), sticky='w')
         self.iv_dump_label = tk.Label(card, text='', bg=CARD2, fg=TEXT, font=(FONT, 8),
                                       anchor='w', justify='left', padx=8, pady=3)
         self.iv_dump_label.grid(row=2, column=1, pady=(3, 3), sticky='ew')
@@ -13791,8 +14599,8 @@ class App:
         self.iv_dump_pick.grid(row=2, column=2, padx=(8, 4), pady=(3, 3))
         self.iv_dump_reload = self._btn(card, '重新读取', self.iv_reload_dumps)
         self.iv_dump_reload.grid(row=2, column=3, padx=(0, 14), pady=(3, 3))
-        tk.Label(card, text='参照文件夹', bg=CARD, fg=TEXT, font=(FONT, 9)).grid(
-            row=3, column=0, padx=(14, 8), pady=(3, 4), sticky='w')
+        self.iv_char_title = tk.Label(card, text='参照文件夹', bg=CARD, fg=TEXT, font=(FONT, 9))
+        self.iv_char_title.grid(row=3, column=0, padx=(14, 8), pady=(3, 4), sticky='w')
         self.iv_char = ttk.Combobox(card, state='readonly', font=(FONT, 9),
                                     style='Iv.TCombobox', values=[])
         self.iv_char.grid(row=3, column=1, pady=(3, 4), sticky='ew')
@@ -13801,15 +14609,65 @@ class App:
                                      justify='left', anchor='w')
         self.iv_char_hint.grid(row=3, column=2, columnspan=2, padx=(8, 14),
                                pady=(3, 4), sticky='ew')
-        tk.Label(card, text='注意：一次只处理一个 mod 的文件夹，别把整个 Mods 目录拖进来；'
-                            '同一个 buf 不要修两次；ini 里的 hash 要先跑「版本Hash修复」更新到最新；'
-                            '参照按 dump 里的文件夹分组（一个文件夹一组，不按角色合并），'
-                            'mod 里的 hash 命中本次这组参照的任意一个才放行，选错整包不处理。',
-                 bg=CARD, fg=WARN, font=(FONT, 8), justify='left', wraplength=760).grid(
-            row=4, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
+        # 注意那行按模式换文字（见 _iv_set_mode）
+        self.iv_note = tk.Label(card, text='', bg=CARD, fg=WARN, font=(FONT, 8),
+                                justify='left', wraplength=760)
+        self.iv_note.grid(row=4, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
         self.iv_entry.bind('<Return>', lambda e: self._iv_start('apply'))
         self.iv_pending_dumps = []      # 本次跑动中拖进来的 dump，跑完统一登记
         self._iv_inited = False
+        # 通用脸部修复模式下藏起来的两行（dump 参照 / 参照文件夹）
+        self.iv_dump_widgets = [self.iv_dump_title, self.iv_dump_label,
+                                self.iv_dump_pick, self.iv_dump_reload]
+        self.iv_ref_widgets = [self.iv_char_title, self.iv_char, self.iv_char_hint]
+        self._iv_set_mode('normal', quiet=True)
+
+    def _iv_set_mode(self, mode, quiet=False):
+        """切「索引与顶点修复」/「通用脸部修复」：通用脸部修复不用参照，那两行藏起来。
+        路径栏、日志、开始/还原按钮都是同一套。"""
+        global FIX_MODE
+        if not quiet and self.running:
+            messagebox.showinfo('提示', '正在处理中，请等这次跑完再切模式。', parent=self.root)
+            return
+        self.iv_mode = mode
+        FIX_MODE = 'universal' if mode == 'universal' else 'normal'
+        face = (mode == 'universal')
+        for w in self.iv_dump_widgets + self.iv_ref_widgets:
+            if face:
+                w.grid_remove()
+            else:
+                w.grid()
+        self.iv_note.config(text=IV_NOTE_FACE if face else IV_NOTE_IV)
+        self.btn_iv_run.config(text=self._iv_run_text())
+        if face:
+            # 通用脸部修复不看参照：dump 全都留着（借它的 blend hash 反推顶点数用）
+            set_active_dumps(None)
+        else:
+            self._iv_apply_character()        # 回到下拉里选中的那组参照
+        self._iv_mode_sync()
+        if not quiet:
+            self._log('已切到「{}」：{}'.format(
+                '通用脸部修复' if face else '索引与顶点修复',
+                '按内嵌名单修 texcoord（每顶点 36 -> 48），不看参照，不碰 VGX'
+                if face else '骨骼索引（VGX）+ 顶点格式（texcoord）'), 'accent')
+            self._goto_log_page('使用说明')      # 点模式按钮 = 把使用说明带出来
+
+    def _iv_run_text(self):
+        """主按钮文字跟着模式走"""
+        return '▶ 开始通用脸部修复' if getattr(self, 'iv_mode', 'normal') == 'universal' else '▶ 开始修复'
+
+    def _iv_mode_sync(self):
+        """模式按钮高亮：选中态 夜=霓虹黄黑字 / 昼=蓝底白字（跟左侧栏一个风格）"""
+        try:
+            p = THEMES.get(getattr(self, 'theme', None) or 'dark', THEMES['dark'])
+            on_bg, on_fg = ((ACCENT, '#191c22') if p is THEMES['dark']
+                            else ('#1976d2', '#ffffff'))
+            for b, mode in getattr(self, 'iv_mode_btns', []):
+                on = (mode == getattr(self, 'iv_mode', 'normal'))
+                b.configure(bg=on_bg if on else p['BTN'], fg=on_fg if on else p['TEXT'],
+                            activebackground=p['BTN_H'])
+        except Exception:
+            pass
 
     def _switch_mode(self, mode):
         """切换左侧标签：版本Hash修复（主工具）/ 索引与顶点修复。
@@ -13899,7 +14757,7 @@ class App:
 
     # ---- dump 参照 ----
     def _iv_init_once(self):
-        """第一次切到该标签：建 dump 目录、读配置里的额外 dump、刷新参照下拉"""
+        """第一次切到该标签：读配置里的额外 dump、刷新参照下拉（不建 dump 目录）"""
         if self._iv_inited:
             return
         self._iv_inited = True
@@ -13907,10 +14765,13 @@ class App:
         dirs = [d for d in (cfg.get('iv_dump_dirs') or [])
                 if isinstance(d, str) and os.path.isdir(d)]
         DUMP_DIRS[:] = dirs
-        ensure_dump_dir()
         refresh_dumps()
+        if not ALL_DUMPS:
+            dump_hint()
         self._iv_refresh_characters(keep=False)
         self._log('dump 参照：{}'.format(describe_active_dumps()), 'gray')
+        if not ALL_DUMPS:
+            self._show_full_log()
 
     def iv_reload_dumps(self):
         """重新扫一遍所有 dump 目录（程序目录的 dump\\、配置里的、拖进来的）"""
@@ -13960,6 +14821,11 @@ class App:
 
     def _iv_apply_character(self):
         """按下拉选中的那组参照限定 dump（没选/没 dump 就只有表能用）"""
+        if getattr(self, 'iv_mode', 'normal') == 'universal':
+            # 通用脸部修复不看参照：dump 全都留着（借它的 blend hash 反推顶点数用）。
+            # 下拉那行这个时候是藏着的，不用管它显示什么。
+            set_active_dumps(None)
+            return
         sel = self.iv_char.get()
         char = sel if sel in character_groups() else None
         set_active_dumps(char)
@@ -13983,6 +14849,20 @@ class App:
         """开修前的提醒：① 先跑「版本Hash修复」把 hash 更新到最新 ② 注意事项。
         每次点“开始修复”都弹一次（不做“不再提醒”）。返回 True = 照修"""
         name = os.path.basename(str(target).rstrip(chr(47) + chr(92))) or str(target)
+        if self.iv_mode == 'universal':
+            msg = ('要修的 mod：{name}\n'
+                   '本次模式：通用脸部修复（{count} 个网格的名单，不看参照）\n\n'
+                   '① 先跑「版本Hash修复」\n'
+                   '   这个模式也按 ini 里的 hash 找人。ini 里的 hash 还是旧版本值时，\n'
+                   '   一个都对不上，会白跑一趟（日志里会提示“hash 还是旧的”）。\n\n'
+                   '② 注意事项\n'
+                   '   · 一次只处理一个 mod 的文件夹，别把整个 Mods 目录拖进来\n'
+                   '   · 同一个 buf 不要修两次（有备份 / 标记的会自动跳过）\n'
+                   '   · 只动 texcoord buf 和 ini 里那行 stride，骨骼索引（VGX）不碰\n'
+                   '   · 每个文件改前都会自动备份，改错了点「↩ 还原」退回\n\n'
+                   '确定现在开始修吗？').format(name=name, count=len(UNIVERSAL_HASHES))
+            return bool(self._dialog_choice('开修前先看一眼', msg,
+                                            [('开始通用脸部修复', True), ('先不修', False)], False))
         msg = ('要修的 mod：{name}\n'
                '本次参照：{ref}\n\n'
                '① 先跑「版本Hash修复」\n'
@@ -14021,7 +14901,8 @@ class App:
                                             len(tokens), '\n'.join('· ' + t for t in tokens[:6])),
                                 parent=self.root)
             return
-        if ALL_DUMPS and self.iv_char.get() not in character_groups():
+        if (self.iv_mode != 'universal' and ALL_DUMPS
+                and self.iv_char.get() not in character_groups()):
             messagebox.showinfo('提示', '请先在“参照文件夹”里选这次要用的一组参照。\n'
                                         '索引与顶点修复不做跨组匹配，一次只用一组（dump 里的一个文件夹）。',
                                 parent=self.root)
@@ -14049,10 +14930,13 @@ class App:
         self.file_label.config(text='', fg=DIM)
         self._file_mode = None
         self._log('=' * 62, 'gray')
-        self._log('索引与顶点修复 · {}：{}'.format(
+        self._log('{} · {}：{}'.format(
+            '通用脸部修复' if self.iv_mode == 'universal' else '索引与顶点修复',
             '还原' if action == 'restore' else '修复', paths[0]), 'accent')
         if action != 'restore':
-            self._log('本次参照：{}'.format(describe_active_dumps()), 'gray')
+            self._log('本次模式：{}'.format(
+                '通用脸部修复（认内嵌名单的 hash，不看参照）' if self.iv_mode == 'universal'
+                else '索引与顶点修复 · 参照：{}'.format(describe_active_dumps())), 'gray')
         self._log('=' * 62, 'gray')
         threading.Thread(target=self._iv_worker, args=(list(paths), action),
                          daemon=True).start()
@@ -14088,7 +14972,7 @@ class App:
     def _iv_finish(self, action):
         aborted = bool(self.cancel_event and self.cancel_event.is_set())
         self.running = False
-        self.btn_iv_run.config(text='▶ 开始修复', bg=ACCENT, fg='#191c22',
+        self.btn_iv_run.config(text=self._iv_run_text(), bg=ACCENT, fg='#191c22',
                                activebackground='#ffcf00', activeforeground='#191c22',
                                state='normal')
         self.btn_iv_restore.config(state='normal')
@@ -14751,6 +15635,8 @@ class App:
                   self.btn_man_clear, self.iv_pick, self.iv_clear,
                   self.iv_dump_pick, self.iv_dump_reload):
             b.config(state=st)
+        for b, _mode in getattr(self, 'iv_mode_btns', []):
+            b.config(state=st)
         try:
             self.iv_char.config(state='readonly' if en else 'disabled')
         except Exception:
@@ -14800,7 +15686,7 @@ class App:
         """主线程：新版选择框。是=自动更新；否=手动更新；取消=忽略该版本（不再自动提醒）"""
         auto_txt = ('当前版本：{}\n最新版本：{}\n\n'
                     '选择更新方式：\n\n'
-                    '  是(Y) - 自动更新：下载后自动覆盖并重启，约需 5~10 秒\n'
+                    '  是(Y) - 自动更新：清掉旧文件后铺开新版并重启，约需 5~10 秒\n'
                     '  否(N) - 手动更新：仅下载压缩包，自行解压替换\n'
                     '  取消 - 忽略此版本，不再提醒（可点“检查更新”手动查看）'
                     ).format(APP_VERSION, info['new'])
@@ -14959,7 +15845,9 @@ class App:
                         '新版已下载。\n\n'
                         '点【确定】后程序将退出并开始自动更新，\n'
                         '约需 5~10 秒，完成后自动重启。\n'
-                        '期间请勿手动打开程序。',
+                        '期间请勿手动打开程序。\n\n'
+                        '更新会清掉程序目录里的旧文件（设置和压缩包保留），\n'
+                        '自行加进程序目录的文件请先挪走。',
                         parent=self.root)
                     self._upd_exit()
                     return

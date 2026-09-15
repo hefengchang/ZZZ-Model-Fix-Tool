@@ -1,0 +1,23 @@
+[
+    {
+        "component_name": "Face",
+        "root_vs": "9684c4091fc9e35a",
+        "draw_vb": "8057c562",
+        "position_vb": "ba455625",
+        "blend_vb": "1a9a858c",
+        "texcoord_vb": "1132301e",
+        "ib": "40cd4182",
+        "object_indexes": [
+            0
+        ],
+        "object_index_counts": [
+            4806
+        ],
+        "object_classifications": [
+            "A"
+        ],
+        "texture_hashes": [
+            []
+        ]
+    }
+]

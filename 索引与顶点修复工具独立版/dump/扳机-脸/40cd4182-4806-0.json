@@ -1,17 +1,17 @@
 {
   "GamePreset": "ZZMI",
-  "VertexLimitVB": "bfa3b361",
+  "VertexLimitVB": "8057c562",
   "CategoryHash": {
-    "Blend": "76fe8eed",
-    "Position": "85b12026",
-    "Texcoord": "69304ff6"
+    "Blend": "1a9a858c",
+    "Position": "dfc69ad0",
+    "Texcoord": "d4a12ab7"
   },
   "CategoryDrawCategoryMap": {
     "Blend": "Position",
     "Position": "Position",
     "Texcoord": "Texcoord"
   },
-  "WorkGameType": "GPU_P12_N12_TA16_C16_T8_T1-8_T2-8_T3-8_BW16_BI16_",
+  "WorkGameType": "GPU_P12_N12_TA16_C4_T8_T1-8_T2-8_T3-8_BI4_",
   "GPU-PreSkinning": true,
   "CB4Hash": "",
   "VertexOffset": 0,
@@ -32,12 +32,12 @@
   "IndexBufferList": [
     {
       "DXGI_FORMAT": "DXGI_FORMAT_R32_UINT",
-      "FileName": "2414f4b9-7398-0.ib"
+      "FileName": "40cd4182-4806-0.ib"
     }
   ],
   "CategoryBufferList": [
     {
-      "FileName": "2414f4b9-7398-0-Position.buf",
+      "FileName": "40cd4182-4806-0-Position.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
@@ -73,14 +73,14 @@
       ]
     },
     {
-      "FileName": "2414f4b9-7398-0-Texcoord.buf",
+      "FileName": "40cd4182-4806-0-Texcoord.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
           "SemanticName": "COLOR",
           "SemanticIndex": "0",
-          "Format": "R32G32B32A32_FLOAT",
-          "ByteWidth": "16",
+          "Format": "R8G8B8A8_UNORM",
+          "ByteWidth": "4",
           "ExtractSlot": "vb1",
           "ExtractTechnique": "pointlist",
           "Category": "Texcoord",
@@ -129,24 +129,14 @@
       ]
     },
     {
-      "FileName": "2414f4b9-7398-0-Blend.buf",
+      "FileName": "40cd4182-4806-0-Blend.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
-          "SemanticName": "BLENDWEIGHTS",
-          "SemanticIndex": "0",
-          "Format": "R32G32B32A32_FLOAT",
-          "ByteWidth": "16",
-          "ExtractSlot": "vb2",
-          "ExtractTechnique": "pointlist",
-          "Category": "Blend",
-          "DrawCategory": "Position"
-        },
-        {
           "SemanticName": "BLENDINDICES",
           "SemanticIndex": "0",
-          "Format": "R32G32B32A32_UINT",
-          "ByteWidth": "16",
+          "Format": "R32_UINT",
+          "ByteWidth": "4",
           "ExtractSlot": "vb2",
           "ExtractTechnique": "pointlist",
           "Category": "Blend",
@@ -158,14 +148,11 @@
   "TextureMarkUpInfoList": [
     {
       "MarkName": "DiffuseMap",
-      "MarkHash": "93ce2562",
+      "MarkHash": "88728785",
       "MarkSlot": "ps-t3",
       "MarkType": "Slot",
-      "MarkFileName": "2414f4b9-7398-0-DiffuseMap.dds",
-      "MarkDedupedFileName": "93ce2562_93ce2562-BC7_UNORM_SRGB.dds"
+      "MarkFileName": "40cd4182-4806-0-DiffuseMap.dds",
+      "MarkDedupedFileName": "88728785_88728785-BC7_UNORM_SRGB.dds"
     }
-  ],
-  "DiffuseMap": [
-    "2414f4b9-7398-0-DiffuseMap.dds"
   ]
 }

@@ -1,0 +1,27 @@
+[
+    {
+        "component_name": "Leg",
+        "root_vs": "e8425f64cfb887cd",
+        "draw_vb": "ea50e1d1",
+        "position_vb": "11fbd4a3",
+        "blend_vb": "3841a909",
+        "texcoord_vb": "14ab0adc",
+        "ib": "24a512cb",
+        "object_indexes": [
+            0,
+            15546
+        ],
+        "object_index_counts": [
+            15546,
+            114
+        ],
+        "object_classifications": [
+            "A",
+            "B"
+        ],
+        "texture_hashes": [
+            [],
+            []
+        ]
+    }
+]

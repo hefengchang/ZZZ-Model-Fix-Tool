@@ -1,10 +1,10 @@
 {
   "GamePreset": "ZZMI",
-  "VertexLimitVB": "bfa3b361",
+  "VertexLimitVB": "9f6aa443",
   "CategoryHash": {
-    "Blend": "76fe8eed",
-    "Position": "85b12026",
-    "Texcoord": "69304ff6"
+    "Blend": "57c9f0a3",
+    "Position": "a5783704",
+    "Texcoord": "db1f2dfa"
   },
   "CategoryDrawCategoryMap": {
     "Blend": "Position",
@@ -32,12 +32,12 @@
   "IndexBufferList": [
     {
       "DXGI_FORMAT": "DXGI_FORMAT_R32_UINT",
-      "FileName": "2414f4b9-7398-0.ib"
+      "FileName": "f6e96452-1458-0.ib"
     }
   ],
   "CategoryBufferList": [
     {
-      "FileName": "2414f4b9-7398-0-Position.buf",
+      "FileName": "f6e96452-1458-0-Position.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "FileName": "2414f4b9-7398-0-Texcoord.buf",
+      "FileName": "f6e96452-1458-0-Texcoord.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
@@ -129,7 +129,7 @@
       ]
     },
     {
-      "FileName": "2414f4b9-7398-0-Blend.buf",
+      "FileName": "f6e96452-1458-0-Blend.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
@@ -158,14 +158,14 @@
   "TextureMarkUpInfoList": [
     {
       "MarkName": "DiffuseMap",
-      "MarkHash": "93ce2562",
+      "MarkHash": "0b75cd32",
       "MarkSlot": "ps-t3",
       "MarkType": "Slot",
-      "MarkFileName": "2414f4b9-7398-0-DiffuseMap.dds",
-      "MarkDedupedFileName": "93ce2562_93ce2562-BC7_UNORM_SRGB.dds"
+      "MarkFileName": "f6e96452-1458-0-DiffuseMap.dds",
+      "MarkDedupedFileName": "0b75cd32_0b75cd32-BC7_UNORM_SRGB.dds"
     }
   ],
   "DiffuseMap": [
-    "2414f4b9-7398-0-DiffuseMap.dds"
+    "f6e96452-1458-0-DiffuseMap.dds"
   ]
 }

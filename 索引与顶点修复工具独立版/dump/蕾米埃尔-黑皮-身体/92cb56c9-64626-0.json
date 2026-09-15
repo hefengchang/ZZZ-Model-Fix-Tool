@@ -1,17 +1,17 @@
 {
   "GamePreset": "ZZMI",
-  "VertexLimitVB": "bfa3b361",
+  "VertexLimitVB": "6a0d36f2",
   "CategoryHash": {
-    "Blend": "76fe8eed",
-    "Position": "85b12026",
-    "Texcoord": "69304ff6"
+    "Blend": "93b69961",
+    "Position": "0929171b",
+    "Texcoord": "c24cc6a1"
   },
   "CategoryDrawCategoryMap": {
     "Blend": "Position",
     "Position": "Position",
     "Texcoord": "Texcoord"
   },
-  "WorkGameType": "GPU_P12_N12_TA16_C16_T8_T1-8_T2-8_T3-8_BW16_BI16_",
+  "WorkGameType": "GPU_P12_N12_TA16_C4_T4_T1-8_T2-4_T3-4_BW16_BI16_",
   "GPU-PreSkinning": true,
   "CB4Hash": "",
   "VertexOffset": 0,
@@ -32,12 +32,12 @@
   "IndexBufferList": [
     {
       "DXGI_FORMAT": "DXGI_FORMAT_R32_UINT",
-      "FileName": "2414f4b9-7398-0.ib"
+      "FileName": "92cb56c9-64626-0.ib"
     }
   ],
   "CategoryBufferList": [
     {
-      "FileName": "2414f4b9-7398-0-Position.buf",
+      "FileName": "92cb56c9-64626-0-Position.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
@@ -73,14 +73,14 @@
       ]
     },
     {
-      "FileName": "2414f4b9-7398-0-Texcoord.buf",
+      "FileName": "92cb56c9-64626-0-Texcoord.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
           "SemanticName": "COLOR",
           "SemanticIndex": "0",
-          "Format": "R32G32B32A32_FLOAT",
-          "ByteWidth": "16",
+          "Format": "R8G8B8A8_UNORM",
+          "ByteWidth": "4",
           "ExtractSlot": "vb1",
           "ExtractTechnique": "pointlist",
           "Category": "Texcoord",
@@ -89,8 +89,8 @@
         {
           "SemanticName": "TEXCOORD",
           "SemanticIndex": "0",
-          "Format": "R32G32_FLOAT",
-          "ByteWidth": "8",
+          "Format": "R16G16_FLOAT",
+          "ByteWidth": "4",
           "ExtractSlot": "vb1",
           "ExtractTechnique": "pointlist",
           "Category": "Texcoord",
@@ -109,8 +109,8 @@
         {
           "SemanticName": "TEXCOORD",
           "SemanticIndex": "2",
-          "Format": "R32G32_FLOAT",
-          "ByteWidth": "8",
+          "Format": "R16G16_FLOAT",
+          "ByteWidth": "4",
           "ExtractSlot": "vb1",
           "ExtractTechnique": "pointlist",
           "Category": "Texcoord",
@@ -119,8 +119,8 @@
         {
           "SemanticName": "TEXCOORD",
           "SemanticIndex": "3",
-          "Format": "R32G32_FLOAT",
-          "ByteWidth": "8",
+          "Format": "R16G16_FLOAT",
+          "ByteWidth": "4",
           "ExtractSlot": "vb1",
           "ExtractTechnique": "pointlist",
           "Category": "Texcoord",
@@ -129,7 +129,7 @@
       ]
     },
     {
-      "FileName": "2414f4b9-7398-0-Blend.buf",
+      "FileName": "92cb56c9-64626-0-Blend.buf",
       "Type": "Normal",
       "D3D11ElementList": [
         {
@@ -158,14 +158,38 @@
   "TextureMarkUpInfoList": [
     {
       "MarkName": "DiffuseMap",
-      "MarkHash": "93ce2562",
+      "MarkHash": "bb0f08b9",
       "MarkSlot": "ps-t3",
       "MarkType": "Slot",
-      "MarkFileName": "2414f4b9-7398-0-DiffuseMap.dds",
-      "MarkDedupedFileName": "93ce2562_93ce2562-BC7_UNORM_SRGB.dds"
+      "MarkFileName": "92cb56c9-64626-0-DiffuseMap.dds",
+      "MarkDedupedFileName": "bb0f08b9_bb0f08b9-BC7_UNORM_SRGB.dds"
+    },
+    {
+      "MarkName": "NormalMap",
+      "MarkHash": "ebac056e",
+      "MarkSlot": "ps-t4",
+      "MarkType": "Slot",
+      "MarkFileName": "92cb56c9-64626-0-NormalMap.dds",
+      "MarkDedupedFileName": "ebac056e_2f0a2724-R8G8B8A8_UNORM.dds"
+    },
+    {
+      "MarkName": "LightMap",
+      "MarkHash": "0e9d14dc",
+      "MarkSlot": "ps-t5",
+      "MarkType": "Slot",
+      "MarkFileName": "92cb56c9-64626-0-LightMap.dds",
+      "MarkDedupedFileName": "0e9d14dc_0e9d14dc-BC6H_UF16.dds"
+    },
+    {
+      "MarkName": "MaterialMap",
+      "MarkHash": "8240c688",
+      "MarkSlot": "ps-t6",
+      "MarkType": "Slot",
+      "MarkFileName": "92cb56c9-64626-0-MaterialMap.dds",
+      "MarkDedupedFileName": "8240c688_8240c688-BC6H_UF16.dds"
     }
   ],
   "DiffuseMap": [
-    "2414f4b9-7398-0-DiffuseMap.dds"
+    "92cb56c9-64626-0-DiffuseMap.dds"
   ]
 }
