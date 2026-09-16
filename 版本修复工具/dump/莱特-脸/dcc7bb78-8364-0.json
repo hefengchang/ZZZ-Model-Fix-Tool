@@ -164,5 +164,8 @@
       "MarkFileName": "dcc7bb78-8364-0-DiffuseMap.dds",
       "MarkDedupedFileName": "4524e91a_4524e91a-BC7_UNORM_SRGB.dds"
     }
+  ],
+  "DiffuseMap": [
+    "dcc7bb78-8364-0-DiffuseMap.dds"
   ]
 }

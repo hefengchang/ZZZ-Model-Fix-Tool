@@ -34,6 +34,13 @@ r"""
         只认 UNIVERSAL_HASHES 那张名单（53 个网格 / 46 个角色，输 3 看名单）。
         这个模式只动 texcoord buf 和 ini 里的 stride，骨骼索引（VGX）不碰。
 
+        老 mod 的 texcoord 比游戏少几块时（2024 年那批只有 2 条 UV，现在 4 条），
+        buf 大小对不上 36 —— 只要 dump\ 里正好有这个网格，就按 dump 的元素表
+        + buf 实际字节推出每块落在哪，缺的块补 0（推不出就说跳过，不乱修；
+        跳过时会把卡在哪说清：dump 缺 -*Texcoord.buf / 值域对不上 / 形状不对）。
+        推出来时，如果 dump 里这个网格绑了不止一张贴图，会多提醒一句 ——
+        那种网格补 0 会让那层贴图失效。
+
 用法
     双击 本脚本：
         第一步  选这次用哪组参照（dump\ 里有几个文件夹就列几组）
@@ -61,7 +68,8 @@ r"""
 
 texcoord 顶点格式和 VGX 骨骼索引都可以不填表：把游戏内抓的 dump 放进本程序目录下的
 dump\ 文件夹，启动时自动读；也可以运行时把 dump 文件夹拖进窗口。
-    贴图格式：json 里的 hash / 当前格式，旧格式按 buf 实际大小倒推
+    贴图格式：json 里的 hash / 当前格式，旧格式按 buf 实际大小倒推；
+             元素个数变过的那种（老 mod 少几块）按 dump 的 texcoord buf 逐块对值域推
     VGX    ：同一个网格文件夹里再放 -*Blend.buf 和 -*Position.buf，
              工具按位置配对逐顶点投票，自己推出索引映射
 两张表（TEXCOORD_TARGETS / VGX_CHARACTERS）里已有的都能用，
@@ -290,6 +298,12 @@ VGX_MARKER_SUFFIX = '.vgx_REMAP_APPLIED.empty'
 #
 #  记法：'4B'=4 字节  '2e'=2 个 half  '2f'=2 个 float  '4f'=4 个 float
 #        '4I'=4 个 uint32  '3f'=3 个 float
+#
+#  element_map（选填）：只有新旧元素个数不一样时才要填 —— 旧第 i 块落在新布局的第几块，
+#      比如旧 3 块（COLOR + 2 条 UV）-> 新 5 块，第二条 UV 落到 TEXCOORD2，就写 [0, 1, 3]；
+#      没被写到的那些新块一律补 0（mod 里没有那份数据）。
+#      一般不手填：dump\ 里有这个网格时，工具自己按 dump 的 texcoord buf 逐块对值域推，
+#      推不出会明说跳过。
 #
 #  blend_hash（选填）：该网格【blend 节】的 hash —— dump 里的 CategoryHash.Blend。
 #      修之前要先确认 buf 到底是不是旧格式，判断顺序：
@@ -963,11 +977,26 @@ def validate_texcoord() -> bool:
             print(c('[配置错误] {}: 必须填 old_format 和 new_format'.format(name), Style.RED))
             ok = False
             continue
-        if len(old_format) != len(new_format):
-            print(c('[配置错误] {}: old_format 有 {} 块，new_format 有 {} 块，必须一样多'.format(
-                name, len(old_format), len(new_format)), Style.RED))
+        element_map = target.get('element_map')
+        if element_map is None and len(old_format) != len(new_format):
+            print(c('[配置错误] {}: old_format 有 {} 块，new_format 有 {} 块，必须一样多'
+                    '（元素个数真的变了就填 element_map）'.format(
+                        name, len(old_format), len(new_format)), Style.RED))
             ok = False
             continue
+        if element_map is not None:
+            if len(element_map) != len(old_format):
+                print(c('[配置错误] {}: element_map 有 {} 个，old_format 有 {} 块，必须一样多'.format(
+                    name, len(element_map), len(old_format)), Style.RED))
+                ok = False
+            elif len(set(element_map)) != len(element_map):
+                print(c('[配置错误] {}: element_map 里有重复的落位'.format(name), Style.RED))
+                ok = False
+            elif any((not isinstance(index, int)) or index < 0 or index >= len(new_format)
+                     for index in element_map):
+                print(c('[配置错误] {}: element_map 里的落位要在 0 ~ {} 之间'.format(
+                    name, len(new_format) - 1), Style.RED))
+                ok = False
         for chunk in list(old_format) + list(new_format):
             if not re.fullmatch(r'\d+[BefIHi]?', str(chunk)):
                 print(c('[配置错误] {}: 格式写法不对 "{}"（例：4B / 2e / 2f / 4f / 4I）'.format(name, chunk), Style.RED))
@@ -1123,39 +1152,61 @@ def find_resource_definition(text, resource_name):
     return None
 
 
-def tex_convert(data: bytes, count: int, old_format, new_format) -> bytes:
-    """按元素块逐个转换（写法和版本修复工具 zzz_13_remap_texcoord 一致）"""
-    if len(old_format) != len(new_format):
-        raise ValueError('old_format 和 new_format 的元素个数必须一样')
+def tex_convert(data: bytes, count: int, old_format, new_format, element_map=None) -> bytes:
+    """按元素块逐个转换（写法和版本修复工具 zzz_13_remap_texcoord 一致）
+
+    element_map：旧第 i 块落到新布局的第几块。给了它就能处理【元素个数变了】的老 mod
+    （常见：老 mod 的 texcoord 只有 2 条 UV，游戏现在是 4 条）——
+    新布局里没被映射到的块一律补 0，因为 mod 里根本没有那份数据。
+    不给就按老规矩：新旧元素个数必须一样，逐块对位。
+    """
+    if element_map is None:
+        if len(old_format) != len(new_format):
+            raise ValueError('old_format 和 new_format 的元素个数必须一样')
+        element_map = list(range(len(old_format)))
+    else:
+        element_map = list(element_map)
+        if len(element_map) != len(old_format):
+            raise ValueError('element_map 的长度必须和 old_format 一样')
+        if len(set(element_map)) != len(element_map):
+            raise ValueError('element_map 里有重复的落位')
+        if any((not isinstance(j, int)) or j < 0 or j >= len(new_format) for j in element_map):
+            raise ValueError('element_map 里有超出 new_format 范围的下标')
 
     old_stride = fmt_stride(old_format)
-    offsets = [0]
+    old_offsets = [0]
     for chunk in old_format:
-        offsets.append(offsets[-1] + struct.calcsize('<' + chunk))
+        old_offsets.append(old_offsets[-1] + struct.calcsize('<' + chunk))
+
+    source_of = {new_index: old_index for old_index, new_index in enumerate(element_map)}
 
     out = bytearray()
     for i in range(count):
         base = i * old_stride
-        for j, (old_chunk, new_chunk) in enumerate(zip(old_format, new_format)):
-            if offsets[j] >= old_stride:          # 超出旧缓冲范围，补 0
+        for j, new_chunk in enumerate(new_format):
+            old_index = source_of.get(j)
+            if old_index is None:                 # 新布局多出来的块，mod 里没有 -> 补 0
                 out.extend(struct.pack('<' + new_chunk, *([0] * fmt_count(new_chunk))))
                 continue
+            old_chunk = old_format[old_index]
+            start = base + old_offsets[old_index]
+            end = base + old_offsets[old_index + 1]
             if old_chunk == new_chunk:            # 没变，原样搬
-                out.extend(data[base + offsets[j]: base + offsets[j + 1]])
+                out.extend(data[start:end])
                 continue
             # 颜色块：字节 0-255 和 0.0-1.0 的浮点 / 半浮点互转（不是原样搬数值）
             if old_chunk == '4B' and new_chunk == '4f':
-                out.extend(struct.pack('<4f', *[b / 255.0 for b in struct.unpack_from('<4B', data, base + offsets[j])]))
+                out.extend(struct.pack('<4f', *[b / 255.0 for b in struct.unpack_from('<4B', data, start)]))
             elif old_chunk == '4f' and new_chunk == '4B':
-                values = [min(255, max(0, int(round(f * 255)))) for f in struct.unpack_from('<4f', data, base + offsets[j])]
+                values = [min(255, max(0, int(round(f * 255)))) for f in struct.unpack_from('<4f', data, start)]
                 out.extend(struct.pack('<4B', *values))
             elif old_chunk == '4B' and new_chunk == '4e':
-                out.extend(struct.pack('<4e', *[b / 255.0 for b in struct.unpack_from('<4B', data, base + offsets[j])]))
+                out.extend(struct.pack('<4e', *[b / 255.0 for b in struct.unpack_from('<4B', data, start)]))
             elif old_chunk == '4e' and new_chunk == '4B':
-                values = [min(255, max(0, int(round(f * 255)))) for f in struct.unpack_from('<4e', data, base + offsets[j])]
+                values = [min(255, max(0, int(round(f * 255)))) for f in struct.unpack_from('<4e', data, start)]
                 out.extend(struct.pack('<4B', *values))
             else:                                  # 其他块按格式重新打包
-                out.extend(struct.pack('<' + new_chunk, *struct.unpack_from('<' + old_chunk, data, base + offsets[j])))
+                out.extend(struct.pack('<' + new_chunk, *struct.unpack_from('<' + old_chunk, data, start)))
     return bytes(out)
 
 
@@ -1241,9 +1292,18 @@ def load_dump_folder(folder: Path):
         relative = json_path.relative_to(folder)
         character = relative.parts[0] if len(relative.parts) > 1 else json_path.stem
 
-        # 同一个文件夹里 3DMigoto 还会 dump 出 -*Blend.buf / -*Position.buf
-        # 有这两个（且都能被 32 / 40 整除）才能自动推 VGX 映射
-        blend_buf = position_buf = None
+        new_format = tuple(dxgi_chunk(str(e.get('Format', '')), int(e.get('ByteWidth', 0)))
+                           for e in elements)
+        new_stride = fmt_stride(new_format)
+        # 元素名（COLOR0 / TEXCOORD0 …）：只拿来打印，好认是哪一块
+        semantics = ['{}{}'.format(e.get('SemanticName', ''), e.get('SemanticIndex', ''))
+                     for e in elements]
+
+        # 同一个文件夹里 3DMigoto 还会 dump 出 -*Blend.buf / -*Position.buf / -*Texcoord.buf
+        # blend + position（能被 32 / 40 整除）才能自动推 VGX 映射；
+        # texcoord（能被 dump 的元素表算出的步幅整除）用来给"元素个数变了"的老 mod
+        # 反推每块落在哪 —— 没有它也能跑，只是那种 buf 推不出来
+        blend_buf = position_buf = texcoord_buf = None
         try:
             for candidate in sorted(json_path.parent.iterdir()):
                 low = candidate.name.lower()
@@ -1256,18 +1316,23 @@ def load_dump_folder(folder: Path):
                     blend_buf = blend_buf or candidate
                 elif 'position' in low and size and size % 40 == 0:
                     position_buf = position_buf or candidate
+                elif 'texcoord' in low and size and new_stride and size % new_stride == 0:
+                    texcoord_buf = texcoord_buf or candidate
         except OSError:
             pass
 
         meshes[tex_hash] = {
             'mesh': json_path.name.split('-')[0],
             'character': character,
-            'new_format': tuple(dxgi_chunk(str(e.get('Format', '')), int(e.get('ByteWidth', 0)))
-                                for e in elements),
+            'new_format': new_format,
+            'semantics': semantics,
+            'textures': [str(item.get('MarkName', '')) for item in (data.get('TextureMarkUpInfoList') or [])
+                         if item.get('MarkName')],
             'blend_hash': hashes.get('blend'),
             'position_hash': hashes.get('position'),
             'blend_buf': blend_buf,
             'position_buf': position_buf,
+            'texcoord_buf': texcoord_buf,
             'source': json_path.name,
         }
     return meshes
@@ -1293,7 +1358,7 @@ def dump_roots():
     roots = []
     for folder in dump_places():
         legacy = folder.parent / '索引与顶点修复工具' / DUMP_DIR_NAME
-        if legacy.is_dir():
+        if legacy.is_dir() and legacy not in roots:
             roots.append(legacy)
         if folder not in roots:
             roots.append(folder)
@@ -1404,23 +1469,87 @@ def choose_character():
         print(c('  没有这个序号。', Style.YELLOW))
 
 
-def dump_hint():
-    """没有 dump 时不建文件夹，只提示放哪儿
+DUMP_README = r"""dump 文件夹 —— 各组参照的网格信息（贴图错乱修复用）
+================================================
 
-    原来这里是"没有就自动建一个空的 + 塞一份说明"，去掉了：
-    自动建的位置一错（脚本在子目录、exe 在别处），用户看到的是"空 dump 已就绪"，
-    会以为是作者没放数据。宁可什么都不建，把位置说清楚。
-    """
-    places = dump_places()
-    print(c('dump\\ 里没有数据。', Style.YELLOW))
-    print('  这个文件夹程序不自动建，自己放一份就行（两处都认，都有时后者优先）：')
-    for folder in places:
-        print('    {}'.format(folder))
-    print('  一个参照一个子文件夹（名字写成「角色-部位」），里面放游戏内 F8 抓的 json；')
-    print('  要推骨骼索引（VGX）就再放同一网格的 -*Blend.buf 和 -*Position.buf。')
-    print('  没有它也能用：表里写死的那些网格照旧能修，只有靠 dump 推的认不出来。')
-    print('  详细说明见程序目录的 使用说明.txt。')
-    print()
+普通用户
+    不用动这里，也不用自己做任何操作。这是作者放好的数据，
+    程序启动时自动读 —— 你直接把 mod 文件夹拖进程序窗口就行。
+
+    这个文件夹就在本程序目录（脚本旁边）；删了下次启动会自动重建一个空的。
+    换新版程序时它跟着一起换，别在这里放自己的东西。
+
+    里面缺哪个角色/哪个网格，反馈给作者补一份即可。
+    （进游戏抓 dump 是作者的事，不需要你来做。）
+
+    作者提供了哪些参照，启动时程序会列出来：
+        dump 已读：3 个网格，参照：琉音-脸、艾莲-腿、露西-脸
+
+作者（维护这个文件夹的人）
+    把 F8 抓的 Frame Analysis dump 的 json 丢进来，**一个参照一个子文件夹**：
+
+        dump\
+            琉音-脸\
+                琉音-脸.json
+            艾莲-腿\
+                d44a8015-24321-0.json
+
+    分组按【文件夹名】走，不按角色合并 —— 一个文件夹 = 一组参照 =
+    一次修复的范围。所以同一角色的不同部位/不同 mod 各放一个文件夹，
+    名字写成「角色-部位」，下拉里就是一组一条：
+        琉音-脸、琉音-腿、艾莲-腿 ……  而不是合并成一个「琉音」。
+    合并了的话，选「琉音」会把已经修过的「琉音-腿」一起带上，
+    同一个网格会被修第二遍 —— 所以千万别按角色合到同一个文件夹里。
+
+    文件夹名只用来在输出里显示，随便改，json 内容不依赖文件名。
+    整个 3DMigoto 那种嵌套目录（<ib hash>-<n>-<i>\TYPE_...\xxx.json）
+    直接拷过来也行，程序会递归找，一级文件夹名当组名。
+
+    抓法：游戏里进到该角色的画面，按 F8 抓 Frame Analysis，在 3DMigoto 的
+    FrameAnalysis 文件夹里找到该网格的 json（文件名形如
+    <ib hash>-<索引数>-<首个索引>.json），复制过来。
+
+    顺带也管骨骼索引（VGX，腿弯 / 塌陷 / 扭曲）：
+    同一个网格文件夹里再放上它的 -*Blend.buf 和 -*Position.buf，工具就能拿
+    dump 当参照自动推索引映射 —— mod 的网格通常是游戏原网格的细分版，
+    位置对得上，于是逐顶点投票，把 mod 的旧索引对上 dump 的新索引。
+
+        json          该网格的 CategoryHash（定位 mod 那边是哪个 buf）
+        -*Blend.buf   新编号的骨骼索引（投票的目标）
+        -*Position.buf 位置（配对用，缺了这个就推不了）
+        -*Texcoord.buf 顶点数据（老 mod 的 buf 比游戏少几块时，靠它对各块的值域推落位）
+
+    抓 dump 时这三样本来就在同一个 TYPE_ 目录里，整个文件夹拷过来即可。
+
+    实测琉音身体：mod 351810 顶点 / 游戏 15715 顶点，位置最近距离中位
+    0.0033（身高的约 0.3%），推出来的映射和已知的表比对 25/26 一致。
+
+注意
+    - json 要能看到这个网格的 texcoord，抓的时候别选错 draw
+    - 前提仍然是 mod 的 ini 里 hash 已经是当前值（先跑版本修复工具），
+      VGX 自动推也是靠 dump 的 CategoryHash 去 ini 里定位 buf 的
+    - 表里和 dump 里都能修同一个网格时，程序会问一次用哪个
+      （texcoord 默认表，由 PREFER_DUMP 决定；VGX 默认推荐表）
+    - 表里没有、只有 dump 能推的网格，程序会问一次要不要用 dump 推的修
+"""
+
+
+def ensure_dump_dir():
+    """本程序目录下的 dump\\ 不存在就建一个，附一份说明。
+    这是 dump 的正式位置：以后新 dump 都往这里放。
+    旧位置（索引与顶点修复工具\\dump\\）只是兼容，读到就用，不再往那边放东西。
+    程序目录和上一级哪个已经有 dump\\ 了就不再多建一个 —— 建错地方会让人
+    以为数据没放（脚本在 py代码\\、dump\\ 在外面时就是这种）。"""
+    if any(folder.is_dir() for folder in dump_places()):
+        return
+    folder = SCRIPT_DIR / DUMP_DIR_NAME
+    try:
+        folder.mkdir(exist_ok=True)
+        readme = folder / '说明.txt'
+        if not readme.exists():
+            readme.write_text(DUMP_README, encoding='utf-8')
+    except Exception:
+        pass
 
 
 def load_dump_into_session(folder: Path):
@@ -1453,6 +1582,242 @@ def infer_old_formats(new_format, per_vertex) -> list:
             if fmt_stride(tuple(candidate)) == per_vertex:
                 hits.append(tuple(candidate))
     return hits
+
+
+# ---- 元素个数变了的推法（老 mod 比游戏少几块，比如只有 2 条 UV）----------------
+
+LAYOUT_RANGE_EPS = 0.02    # 值域包含的容差（mod 是改过的网格，边界允许差一点）
+
+
+def layout_candidates(new_format, per_vertex) -> list:
+    """按字节数凑候选：保留 dump 元素表的一个子集，其中 4f 那块可以缩成 4B / 4e
+
+    老 mod 的 texcoord 往往比游戏少几块（当年只有 2 条 UV，现在 4 条）。
+    返回 [{'old_format', 'element_map', 'unmatched'}]：
+        old_format   按保留顺序拼出来的旧布局（被缩的那块已经是 4B / 4e）
+        element_map  旧第 i 块落在新布局的第几块（就是 dump 元素表里保留下来的下标）
+        unmatched    保留下来的、既不是 2f、也不是被缩的那块的元素 —— 没法拿值域对，
+                     只能在候选唯一时才敢用
+    """
+    sizes = [struct.calcsize('<' + chunk) for chunk in new_format]
+    total = len(new_format)
+    out = []
+    seen = set()
+    for mask in range(1, 1 << total):
+        kept = [index for index in range(total) if mask >> index & 1]
+        bytes_now = sum(sizes[index] for index in kept)
+        choices = [(None, None)]                       # (被缩的新块下标, 缩成什么)
+        for index in kept:
+            if new_format[index] == '4f':
+                choices += [(index, shrink) for shrink in ('4B', '4e')]
+        for shrunk, shrink_format in choices:
+            got = bytes_now
+            if shrunk is not None:
+                got = bytes_now - sizes[shrunk] + struct.calcsize('<' + shrink_format)
+            if got != per_vertex:
+                continue
+            old_format = tuple(shrink_format if index == shrunk else new_format[index]
+                               for index in kept)
+            key = (old_format, tuple(kept))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                'old_format': old_format,
+                'element_map': list(kept),
+                'unmatched': [index for index in kept
+                              if new_format[index] != '2f' and index != shrunk],
+            })
+    return out
+
+
+def chunk_value_ranges(data: bytes, count: int, chunks) -> list:
+    """每块里 float 的取值范围 [((最小, 最大)) 或 None]
+
+    只认 2f 块（UV 那种）：两个分量一起取最值。别的块给 None（不参与对值）。
+    NaN / inf 的顶点直接跳过（真 dump 里就有这种退化 UV）；有限值却大得离谱的，
+    说明这个布局根本不是这么切的 —— 整块判 None。
+    """
+    offsets = [0]
+    for chunk in chunks:
+        offsets.append(offsets[-1] + struct.calcsize('<' + chunk))
+    stride = offsets[-1]
+    result = []
+    for index, chunk in enumerate(chunks):
+        if chunk != '2f':
+            result.append(None)
+            continue
+        low = high = None
+        broken = False
+        for i in range(count):
+            u, v = struct.unpack_from('<2f', data, i * stride + offsets[index])
+            for value in (u, v):
+                if value != value or value in (float('inf'), float('-inf')):
+                    continue
+                if abs(value) > 1e6:
+                    broken = True
+                    break
+                if low is None or value < low:
+                    low = value
+                if high is None or value > high:
+                    high = value
+            if broken:
+                break
+        result.append(None if broken or low is None else (low, high))
+    return result
+
+
+def dump_layout_ranges(info: dict):
+    """dump 的 texcoord buf 按 dump 元素表算出来的各块取值范围；没带 buf 返回 None"""
+    path = info.get('texcoord_buf')
+    if not path:
+        return None
+    path = Path(path)
+    new_format = tuple(info['new_format'])
+    stride = fmt_stride(new_format)
+    try:
+        data = path.read_bytes()
+    except Exception:
+        return None
+    if not stride or not data or len(data) % stride:
+        return None
+    return chunk_value_ranges(data, len(data) // stride, new_format)
+
+
+def match_chunks_to_dump(mod_ranges, dump_ranges):
+    """把 mod 的每块（2f）对到 dump 的某块上 -> {新块下标: 旧块下标}；对不出唯一返回 None
+
+    规则：mod 那块的值域要落在 dump 那块的值域里，且取最紧的那个；
+    两个 dump 块一样紧 = 说不清，直接放弃（宁可不修，不乱修）。
+    """
+    options = []
+    for old_index, mod_range in enumerate(mod_ranges):
+        if mod_range is None:
+            continue
+        hits = []
+        for dump_index, dump_range in enumerate(dump_ranges):
+            if dump_range is None:
+                continue
+            if (mod_range[0] >= dump_range[0] - LAYOUT_RANGE_EPS
+                    and mod_range[1] <= dump_range[1] + LAYOUT_RANGE_EPS):
+                hits.append((dump_range[1] - dump_range[0], dump_index))
+        if not hits:
+            return None
+        hits.sort()
+        if len(hits) > 1 and abs(hits[0][0] - hits[1][0]) < 1e-9:
+            return None                    # 一样紧，认不出是哪块
+        options.append((old_index, [item[1] for item in hits]))
+
+    options.sort(key=lambda item: len(item[1]))       # 选择少的先定，挤掉别人的可能性
+    used = set()
+    assignment = {}
+    for old_index, targets in options:
+        for dump_index in targets:
+            if dump_index in used:
+                continue
+            assignment[dump_index] = old_index
+            used.add(dump_index)
+            break
+        else:
+            return None
+    return assignment
+
+
+def derive_element_layout(buf: Path, count: int, per_vertex: int, info: dict):
+    """buf 比 dump 少几块时，推【旧第几块 -> 新第几块】，缺的块补 0
+
+        1. 按字节数凑候选（layout_candidates）
+        2. 用 dump 的 texcoord buf 里各块的实际取值范围筛：mod 每块的值域必须落在 dump
+           对应的那块里，且这个对应关系要和候选自己给的顺序一致
+        3. dump 没带 texcoord buf（老 dump 只有 json）时，只有候选唯一才敢用
+
+    返回 {'ok': True, 'old_format', 'element_map', 'note'}；
+    推不出返回 {'ok': False, 'reason'}（reason 是给用户看的一句话，说清卡在哪）。
+    """
+    try:
+        data = buf.read_bytes()
+    except Exception:
+        return {'ok': False, 'reason': 'buf 读不出来'}
+
+    new_format = tuple(info['new_format'])
+    candidates = layout_candidates(new_format, per_vertex)
+    if not candidates:
+        return {'ok': False, 'reason':
+                '按每顶点 {} 字节凑不出 dump 元素表的子集 —— 形状不是"少几块"这种'.format(per_vertex)}
+
+    dump_ranges = dump_layout_ranges(info)
+    matched = []
+    if dump_ranges is not None:
+        for candidate in candidates:
+            old_format = candidate['old_format']
+            if candidate['unmatched']:
+                continue
+            mod_ranges = chunk_value_ranges(data, count, old_format)
+            expected = {}
+            broken = False
+            for old_index, chunk in enumerate(old_format):
+                if chunk != '2f':
+                    continue
+                if mod_ranges[old_index] is None:
+                    broken = True        # 这么切出来不是像样的 UV，这个候选不对
+                    break
+                expected[candidate['element_map'][old_index]] = old_index
+            if broken:
+                continue
+            if match_chunks_to_dump(mod_ranges, dump_ranges) == expected:
+                matched.append(candidate)
+
+    if len(matched) == 1:
+        candidate = matched[0]
+        how = '（按 dump 各块的值域对出来的）'
+    elif not matched and len(candidates) == 1 and not candidates[0]['unmatched']:
+        candidate = candidates[0]
+        how = '（只有这一种凑得上，dump 没带 texcoord buf，没别的佐证）'
+    else:
+        if dump_ranges is None:
+            reason = ('dump 里没有这个网格的 texcoord buf，{} 种凑法分不出用哪个'
+                      '（把 -*Texcoord.buf 跟 json 一起放进 dump\\）'.format(len(candidates)))
+        elif all(candidate['unmatched'] for candidate in candidates):
+            reason = '留下来的块里除颜色外还有对不了值的元素，认不出落位'
+        else:
+            reason = 'buf 里各块的值域和 dump 对不上（多半这份 mod 的 UV 自己改过），认不出落位'
+        return {'ok': False, 'reason': reason}
+
+    element_map = candidate['element_map']
+    missing = [index for index in range(len(new_format)) if index not in set(element_map)]
+    semantics = info.get('semantics') or []
+    names = []
+    for index in missing:
+        names.append(semantics[index] if index < len(semantics) and semantics[index]
+                     else '第 {} 块'.format(index + 1))
+    note = '旧 {} 块 -> 新 {} 块：{}'.format(
+        len(element_map), len(new_format),
+        '、'.join('{}->{}'.format(i + 1, j + 1) for i, j in enumerate(element_map)))
+    if missing:
+        note += '，缺的 {} 补 0'.format('、'.join(names))
+    note += how
+    return {'ok': True, 'old_format': candidate['old_format'],
+            'element_map': element_map, 'note': note}
+
+
+def infer_layout_from_dump(buf: Path, count: int, per_vertex: int, info: dict):
+    """buf 和 dump 的元素表对不上时，用 dump 的元素表 + buf 实际字节推一份能用的
+
+    先按【元素个数不变、只缩一块】推（36 -> 48 那种）；推不出再按【少了几块】推。
+    返回 {'ok': True, 'old_format', 'element_map', 'note', 'multi'}，
+    或 {'ok': False, 'reason'}（说清卡在哪，用户自己能补数据 / 判断）；
+    也已经是新格式时返回 None。
+    element_map 为 None = 元素个数没变，multi = 同尺寸有多种凑法（取最靠前的那块 COLOR）。
+    """
+    new_format = tuple(info['new_format'])
+    if per_vertex == fmt_stride(new_format):
+        return None                     # 已经是新格式（调用方自己会判，这里只是保险）
+    same = infer_old_formats(new_format, per_vertex)
+    if same:
+        return {'ok': True, 'old_format': same[0], 'element_map': None, 'multi': len(same) > 1,
+                'note': '元素个数没变，按 buf 大小倒推：{}  ->  {}'.format(
+                    ' + '.join(same[0]), ' + '.join(new_format))}
+    return derive_element_layout(buf, count, per_vertex, info)
 
 
 def tex_backup_of(buf: Path) -> Path:
@@ -1666,23 +2031,47 @@ def tex_plan(target: Path, use_dump_for_conflicts: bool = None, entries: list = 
         # 能整除就用整数，免得浮点比较出偏差
         per_vertex = size // count if size % count == 0 else size / count
 
-        inferred = None
+        inferred = None            # 旧格式是推出来的（元素个数没变那条路，取最靠前的）
+        element_map = item['target'].get('element_map') or None
+        layout_note = None         # 元素个数变了时的说明（打给用户看）
+        layout_reason = None       # 推不出时的原因（也打给用户看）
+        hash_key = str(item['target'].get('hash', '')).lower()
+        info = DUMP_MESHES.get(hash_key)
+
         if from_dump and not old_format:
             if per_vertex == new_stride:
                 print('- [格式] {}  "{}"  {}'.format(
                     label, buf, c('已是新格式({})，跳过'.format(new_stride), Style.YELLOW)))
                 skipped += 1
                 continue
-            candidates = infer_old_formats(new_format, per_vertex)
-            if not candidates:
+            got = infer_layout_from_dump(buf, count, per_vertex, info) if info else None
+            if not got or not got.get('ok'):
                 print('- [格式] {}  "{}"  {}'.format(
                     label, buf, c('每顶点 {} 字节，推不出对应的旧格式，跳过'.format(per_vertex), Style.YELLOW)))
                 print('        （dump 给的当前格式是 {}）'.format(' + '.join(new_format)))
+                if got and got.get('reason'):
+                    print(c('        （{}）'.format(got['reason']), Style.YELLOW))
                 skipped += 1
                 continue
-            old_format = candidates[0]
+            old_format = got['old_format']
+            element_map = got['element_map']
+            layout_note = got['note']
             old_stride = fmt_stride(old_format)
-            inferred = len(candidates) > 1
+            inferred = got.get('multi')
+        elif (element_map is None and old_format
+                and per_vertex != fmt_stride(old_format) and info):
+            # 表里 / 名单里写了旧格式，但 buf 大小对不上 —— 元素个数变过的那种
+            # （老 mod 只有 2 条 UV，游戏现在是 4 条）。有 dump 就按 dump 的元素表 + buf 推；
+            # 推不出就照旧跳过（下面那条"和表里对不上"的提示 + 原因）
+            got = infer_layout_from_dump(buf, count, per_vertex, info)
+            if got and got.get('ok'):
+                old_format = got['old_format']
+                element_map = got['element_map']
+                layout_note = got['note']
+                old_stride = fmt_stride(old_format)
+                inferred = got.get('multi')
+            elif got:
+                layout_reason = got.get('reason')
 
         do_buf = (per_vertex == old_stride)
         do_stride = (item['stride'] == old_stride)
@@ -1692,7 +2081,14 @@ def tex_plan(target: Path, use_dump_for_conflicts: bool = None, entries: list = 
             print('        认得它：hash {}'.format(c(item['target']['hash_note'], Style.GREEN)))
         print('        格式 {} -> {} 字节/顶点   顶点数 {}（{}）'.format(
             old_stride, new_stride, count, from_what))
-        if inferred is not None:
+        if element_map:
+            print(c('        {}'.format(layout_note), Style.GREEN))
+            textures = info.get('textures') if info else None
+            if textures and len(textures) > 1:
+                print(c('        注意：dump 里这个网格绑了 {} 张贴图（{}）—— 补 0 的那几块 UV '
+                        '在游戏里是有贴图的，那层细节补不回来'.format(
+                            len(textures), '、'.join(textures)), Style.YELLOW))
+        elif inferred is not None:
             print('        按 buf 大小倒推：{}  ->  {}'.format(
                 ' + '.join(old_format), ' + '.join(new_format)))
             if inferred:
@@ -1704,6 +2100,8 @@ def tex_plan(target: Path, use_dump_for_conflicts: bool = None, entries: list = 
         else:
             print('        {}'.format(c('buf 每顶点 {} 字节，和表里的 {} 对不上，跳过'.format(
                 per_vertex, old_stride), Style.YELLOW)))
+            if layout_reason:
+                print(c('        （{}）'.format(layout_reason), Style.YELLOW))
             skipped += 1
             continue
         if do_stride:
@@ -1713,6 +2111,7 @@ def tex_plan(target: Path, use_dump_for_conflicts: bool = None, entries: list = 
             planned.append({
                 'buf': buf, 'ini': item['ini'], 'count': count,
                 'old_format': old_format, 'new_format': new_format,
+                'element_map': element_map,
                 'old_stride': old_stride, 'new_stride': new_stride,
                 'stride_span': item['stride_span'], 'do_buf': do_buf, 'do_stride': do_stride,
             })
@@ -1747,7 +2146,8 @@ def tex_apply(planned, total=None, done0=0):
         if item['do_buf']:
             original = buf.read_bytes()
             tex_backup_of(buf).write_bytes(original)
-            buf.write_bytes(tex_convert(original, item['count'], item['old_format'], item['new_format']))
+            buf.write_bytes(tex_convert(original, item['count'], item['old_format'],
+                                        item['new_format'], item.get('element_map')))
             tex_marker_of(buf).write_text('', encoding='utf-8')
             changes.append('buf {} -> {} 字节'.format(len(original), buf.stat().st_size))
 
@@ -2325,7 +2725,7 @@ def drag_drop_loop():
                 print('当前参照：{}'.format(describe_active_dumps()))
                 print()
             else:
-                print(c('  dump\\ 里还没有数据（放哪儿见启动时的提示）。', Style.YELLOW))
+                print(c('  dump\\ 里还没有 dump。', Style.YELLOW))
             continue
 
         # 一次拖多个文件夹时，控制台会把所有路径拼成一行（含空格的路径带引号）
@@ -2378,9 +2778,8 @@ def main():
     print('（两套模式：索引与顶点修复 / 通用脸部修复，启动时选，拖放界面输 m 可以换）')
     print()
 
+    ensure_dump_dir()
     refresh_dumps()
-    if not ALL_DUMPS:
-        dump_hint()
 
     if paths:
         set_active_dumps(None)          # 命令行调用不提问，有多少用多少
