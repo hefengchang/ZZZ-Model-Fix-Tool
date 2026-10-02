@@ -1,4 +1,4 @@
-# zzz_fix manifest v3.2E
+# zzz_fix manifest v3.2F
 dump/哲通用-脸/1fdaf388-9258-0-Blend.buf
 dump/哲通用-脸/1fdaf388-9258-0-Position.buf
 dump/哲通用-脸/1fdaf388-9258-0-Texcoord.buf
@@ -1156,3 +1156,5 @@ zzz_fix.中文版.exe
 依赖包勿删/ucrtbase.dll
 依赖包勿删/unicodedata.pyd
 依赖包勿删/zlib1.dll
+命令参数说明.txt
+独立版/版本Hash修复独立版.exe

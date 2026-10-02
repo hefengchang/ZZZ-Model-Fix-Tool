@@ -20,7 +20,7 @@ import urllib.parse
 import webbrowser
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.2E'
+APP_VERSION = 'v3.2F'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
@@ -43,6 +43,13 @@ from tkinter import ttk, filedialog, messagebox
 # ================= 同目录存在 txt 时程序优先读文件，打包后无 txt 用此内嵌版）
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
+
+版本3.2F
+--------
+1.修复：`run = CommandListSkinTexture` 的添加逻辑bug
+2.新增：1.版本hash更新独立版、命令参数说明。2.支持ini文件还原。3.支持index_counts的更新。
+3.新增：洛克茜 Hash 值支持对应的修复。
+
 版本3.2E
 --------
 1.修复：优化了索引与顶点修复工具的逻辑，支持一些特殊情况的修复。
@@ -150,6 +157,25 @@ ZZZ Fix 工具 - 全部更新历史
 
 # ================= 内嵌 Hash 变动日志（与 Hash变动日志.txt 同步维护；打包后无 txt 用此内嵌版）
 HASHLOG_TEXT = r'''
+===============================================================================
+  3.2 -> 3.21
+===============================================================================
+【洛克茜Roxy】
+IB: 4e6e989e（头发）
+  ib: 2533ab1c -> 4e6e989e
+  position_vb: 1fdb833a -> 8d17b17d
+  texcoord_vb: b44f7eda -> 77598722
+  blend_vb: 520d6267 -> 831dc545
+  object_indexes: [0, 12435, 14712] -> [0, 11700]
+  object_classifications: ['A', 'B']
+  texture_hashes 截断: 3 -> 2 组 (IB 2533ab1c -> 4e6e989e)
+IB: e40b00b2（脸）
+  ib: 75b3aa9c -> e40b00b2
+  texcoord_vb: e8bed423 -> c90eb75c
+  blend_vb: 551c5f22 -> c0b23b8b
+  object_indexes: [0, 7350, 9216] -> [0, 6996, 9216]
+  object_classifications: ['A', 'B', 'C']
+
 ===============================================================================
   3.1 -> 3.2
 ===============================================================================
@@ -1069,6 +1095,104 @@ def _enable_ansi():
         except Exception:
             pass  # 不支持 ANSI 的控制台也能正常运行，只是没有颜色
 
+# 命令行(黑窗)模式的开关：__main__ 按它决定进 GUI 还是控制台
+CONSOLE_FLAGS = ('--cli', '-c', '--console')
+
+# 独立单文件版的构建标记：一键打包发布.bat 打包时用 --add-data 塞进包里，
+# onefile 每次启动会把它解压到 sys._MEIPASS，所以 exe 改名、搬到哪都还在。
+# 这条是主判定；下面按文件名认的那条只是兜底（老包 / 手工改名 / 标记丢了）
+STANDALONE_MARK = '独立版标记.txt'
+
+# 兜底判定用的文件名（不含扩展名、小写比较）
+STANDALONE_NAMES = ('版本hash修复独立版', '版本hash修复', 'hash修复', 'zzz_版本hash修复')
+
+
+def _is_standalone_console():
+    """当前跑的是不是独立单文件版（黑窗 Hash 修复器）"""
+    try:
+        base = getattr(sys, '_MEIPASS', None)
+        if base and os.path.exists(os.path.join(base, STANDALONE_MARK)):
+            return True
+    except Exception:
+        pass
+    try:
+        p = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
+        return os.path.splitext(os.path.basename(p))[0].lower() in STANDALONE_NAMES
+    except Exception:
+        return False
+
+
+def _console_mode_requested(argv=None):
+    """本进程是不是该走命令行(黑窗)模式"""
+    if _is_standalone_console():
+        return True
+    if argv is None:
+        argv = sys.argv[1:]
+    return any(a in CONSOLE_FLAGS for a in argv)
+
+
+def _ensure_console():
+    """命令行模式先备好黑窗，否则 print/input 全是废的。
+
+    打包用 --windowed（见 一键打包发布.bat），双击或从 cmd 跑都没有控制台：
+    sys.stdout 是 None（print 被静默吞掉），input() 直接抛 RuntimeError。
+    这里先借用调用方的控制台（从 cmd 里跑就复用那个窗口），没有就自己开一个
+    （AllocConsole），再把 stdin/stdout/stderr 接到 CONIN$/CONOUT$ 上。
+    """
+    if sys.platform != 'win32':
+        return
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+    except Exception:
+        return
+
+    # 标题：双击时系统默认显示整个 exe 路径，太占地方，换成程序名
+    try:
+        k32.SetConsoleTitleW('ZZZ Fix {} 中文版'.format(APP_VERSION))
+    except Exception:
+        pass
+
+    try:
+        # 已有可用标准输出（独立版 --console 打包 / python.exe 直接跑 / 输出被重定向）
+        # 就别动它；fileno 都没有（--windowed 的哑 stdout）说明得自己开黑窗
+        if sys.stdout is not None and sys.stdout.fileno() >= 0:
+            return
+    except Exception:
+        pass
+
+    codec = 'mbcs'
+    try:
+        try:
+            if not k32.GetConsoleWindow():
+                # 先试附着到父进程的控制台（cmd 启动就复用那个窗口），不行再自己开一个。
+                # 两步都失败也不必回头：ConPTY 下 GetConsoleWindow 可能是 0，
+                # 但控制台其实已经在了，下面直接开 CONOUT$ 照样能成
+                k32.AttachConsole(-1) or k32.AllocConsole()
+        except Exception:
+            pass
+        # 代码页切 UTF-8，中文才不会乱码；老系统切不动就退回本机码页(mbcs)
+        if k32.SetConsoleOutputCP(65001):
+            k32.SetConsoleCP(65001)
+            codec = 'utf-8'
+    except Exception:
+        pass
+
+    try:
+        import io
+        # 用二进制句柄再包一层：CONOUT$ 走文本模式缓冲会吞掉进度那种 \r 输出
+        sys.stdin = io.TextIOWrapper(open('CONIN$', 'rb'),
+                                     encoding=codec, errors='replace')
+        sys.stdout = io.TextIOWrapper(open('CONOUT$', 'wb', buffering=0),
+                                      encoding=codec, errors='replace',
+                                      write_through=True)
+        sys.stderr = io.TextIOWrapper(open('CONOUT$', 'wb', buffering=0),
+                                      encoding=codec, errors='replace',
+                                      write_through=True)
+    except Exception:
+        pass
+
+
 # 额外的预防措施，以避免多次“修复”相同的缓冲区
 global_modified_buffers: dict[str, list[str]] = {}
 
@@ -1150,6 +1274,10 @@ def main():
     )
 
     parser.add_argument('paths', nargs='*', default=None, type=str)
+    # 命令行(黑窗)模式开关。__main__ 已按它分流进 _run_cli，这里注册只为两件事：
+    # --help 能列出来；"--cli" 不会落进 unknown 被当成路径报“路径不存在”
+    parser.add_argument('--cli', '-c', '--console', dest='cli', action='store_true',
+                        help='用命令行(黑色窗口)模式运行版本 Hash 修复，不打开图形界面')
     # parse_known_args: 以 "-" 开头的路径（如文件夹名 "-mods"）会被放入 unknown，
     # 与位置参数合并处理而不是报错；--help 仍正常显示帮助
     args, unknown = parser.parse_known_args()
@@ -1278,6 +1406,12 @@ def drag_drop_loop():
 
         lower = raw.lower()
         if lower in ('update', 'up', '更新', '检查更新'):
+            if _is_standalone_console():
+                # 独立版不带更新：它只跟主 zip 一起发布，要新版就重下主 zip
+                print('独立版不带更新功能。')
+                print('请到发布页重新下载主压缩包，解压后用 独立版\\ 里新的 '
+                      '版本Hash修复独立版.exe 覆盖过来。')
+                continue
             try:
                 if cli_check_update(manual=True):
                     return
@@ -1764,6 +1898,9 @@ class create_new_section():
 class transfer_indexed_sections():
     trg_indices: tuple[str] = None
     src_indices: tuple[str] = None
+    trg_counts : tuple[str] = None   # 目标分段计数（object_index_counts），与 trg_indices 一一对应
+    src_counts : tuple[str] = None   # 源分段计数（object_index_counts），与 src_indices 一一对应
+    drop_indices: tuple[str] = None  # 这些源索引对应的节在新版分段里已不存在，整节注释掉
 
     def execute(self, default_args: DefaultArgs):
         ini         = default_args.ini
@@ -1795,31 +1932,94 @@ class transfer_indexed_sections():
                 title = mt.group(1)[:-2]
             break
 
+        # 目标分段区间（object_index_counts）：段数不同时按「包含」配对用
+        # （源段起点落在哪个目标段区间内，就配到那个目标段；例如洛克茜头发 3 段 -> 2 段）
+        trg_segments = []
+        if self.trg_counts and self.trg_indices and len(self.trg_counts) == len(self.trg_indices):
+            for trg_index, trg_count in zip(self.trg_indices, self.trg_counts):
+                if trg_index == '-1':   # 新建的 ib = null 节没有计数
+                    trg_segments = []
+                    break
+                trg_segments.append((int(trg_index), int(trg_count)))
+
+        def target_segment_of(value):
+            """value 落在哪个目标段，返回 (起点, 计数)；不在任何段内返回 None"""
+            try:
+                v = int(value)
+            except (TypeError, ValueError):
+                return None
+            for start, count in trg_segments:
+                if start <= v < start + count:
+                    return start, count
+            return None
+
         # 配对：src -> trg；'-1' 表示没有源节，新建 ib = null 节；缺失的 src 跳过并记录
         # （ib = null 节用 'Null{索引}' 命名，避免与保留的原节重名）
-        remap      = {}
-        null_pairs = []
-        missing    = []
+        zip_remap = {}
         for trg_index, src_index in zip(self.trg_indices, self.src_indices):
+            if src_index != '-1' and trg_index != '-1':
+                zip_remap.setdefault(src_index, trg_index)
+
+        remap       = {}
+        count_remap = {}   # 源段计数 -> 目标段计数（object_index_counts）
+        drop_set    = set(self.drop_indices or ())   # 已不存在的源段：整节注释
+        null_pairs  = []
+        missing     = []
+        # 按源段遍历（不能直接 zip：新旧段数不同时多余的源段要留给「包含」配对）
+        for i, src_index in enumerate(self.src_indices or ()):
+            trg_index = self.trg_indices[i] if i < len(self.trg_indices or ()) else None
             if src_index == '-1':
-                null_pairs.append(trg_index)
-            elif src_index in actual_indices:
-                remap[src_index] = trg_index
-            else:
+                if trg_index is not None:
+                    null_pairs.append(trg_index)
+                continue
+            if src_index in drop_set:
+                continue   # 不参与映射，由下面的注释逻辑处理
+            if src_index not in actual_indices:
                 missing.append(src_index)
+                continue
+
+            if src_index in zip_remap:
+                remap[src_index] = zip_remap[src_index]
+            else:
+                # 位置对不上（新旧段数不同）时按包含关系找目标段
+                seg = target_segment_of(src_index)
+                if seg:
+                    remap[src_index] = str(seg[0])
+
+            # 计数映射：同一源段对应的目标段计数
+            if self.src_counts and i < len(self.src_counts):
+                seg = target_segment_of(src_index)
+                if seg:
+                    count_remap[self.src_counts[i]] = str(seg[1])
 
         # 原地改写 match_first_index / match_index_count：只动配对的节，其余一律不碰
-        # （match_index_count 是分段边界：前一段的 count 常等于后一段的 first_index，
-        #   所以 count 也参与同一张位置映射，即使该节自身的 first_index 未变）
+        # （match_index_count 优先走 object_index_counts 的计数映射；没有该字段时退回索引映射，
+        #   因为前一段的 count 常等于后一段的 first_index）
         new_content = ''
         prev_end    = 0
         migrated    = 0
+        dropped     = 0
         section_notes = []
         for m in section_matches:
             new_content += ini.content[prev_end:m.start()]
 
             new_section = m.group(0)
             idx = re.search(r'\n\s*match_first_index\s*=\s*([\d]+)', new_section, flags=re.IGNORECASE)
+
+            # 该源段在新版分段里已不存在：整节注释掉（尾部空白原样保留）
+            if idx and idx.group(1) in drop_set:
+                core = new_section.rstrip()
+                tmt = TITLE.search(core)
+                tname = tmt.group(1) if tmt else '?'
+                new_section = '\n'.join(
+                    line if line.lstrip().startswith(';') else '; ' + line
+                    for line in core.splitlines()
+                ) + new_section[len(core):]
+                section_notes.append('- {}: 索引 {} 已不存在，注释该节'.format(tname, idx.group(1)))
+                new_content += new_section
+                prev_end = m.end()
+                dropped += 1
+                continue
             if idx and idx.group(1) in remap and remap[idx.group(1)] != idx.group(1):
                 new_section = re.sub(
                     r'(\n\s*match_first_index\s*=\s*)[\d]+',
@@ -1828,10 +2028,15 @@ class transfer_indexed_sections():
                 )
 
             cnt = re.search(r'\n\s*match_index_count\s*=\s*([\d]+)', new_section, flags=re.IGNORECASE)
-            if cnt and cnt.group(1) in remap and remap[cnt.group(1)] != cnt.group(1):
+            # 计数走 object_index_counts 映射；没有该字段时退回索引映射
+            # （前一段的 count 常等于后一段的 first_index 这种老习惯）
+            cnt_new = None
+            if cnt:
+                cnt_new = count_remap.get(cnt.group(1)) or remap.get(cnt.group(1))
+            if cnt and cnt_new and cnt_new != cnt.group(1):
                 new_section = re.sub(
                     r'(\n\s*match_index_count\s*=\s*)[\d]+',
-                    r'\g<1>' + remap[cnt.group(1)],
+                    r'\g<1>' + cnt_new,
                     new_section, count=1, flags=re.IGNORECASE
                 )
 
@@ -1868,13 +2073,15 @@ class transfer_indexed_sections():
 
         new_content += ini.content[prev_end:]
 
-        changed = (migrated > 0 or bool(null_pairs))
+        changed = (migrated > 0 or bool(null_pairs) or dropped > 0)
         if changed:
             ini.content = new_content
 
         queue_commands = []
         if migrated:
             queue_commands.append((log, ('+ 迁移 {} 个索引节'.format(migrated),)))
+        if dropped:
+            queue_commands.append((log, ('- 注释 {} 个已不存在的索引节'.format(dropped),)))
         if null_pairs:
             queue_commands.append((log, ('+ 新建 {} 个 ib = null 节'.format(len(null_pairs)),)))
         if missing:
@@ -1935,25 +2142,149 @@ class multiply_section_if_missing():
         )
 
 
+SKIN_TEXTURE_RUN_LINE   = 'run = CommandListSkinTexture'
+# 行首（含缩进），且第一个非空白字符不是注释符 `;` / `#`，被注释掉的行一律不算
+_ACTIVE_LINE_PREFIX     = r'^[ \t]*(?![;#])'
+_LINE_FLAGS             = re.IGNORECASE | re.MULTILINE
+# 节内 `run = CommandList\ZZMI\SetTextures` 行（匹配含行首缩进，不含行尾换行）
+ZZMI_SET_TEXTURES_LINE  = re.compile(_ACTIVE_LINE_PREFIX + r'run\s*=\s*CommandList\\ZZMI\\SetTextures[^\n]*',
+                                     flags=_LINE_FLAGS)
+# 节内 `checktextureoverride = ...` 行（匹配含行首缩进，不含行尾换行）
+CHECK_TEXTURE_OVERRIDE_LINE = re.compile(_ACTIVE_LINE_PREFIX + r'checktextureoverride\s*=[^\n]*',
+                                         flags=_LINE_FLAGS)
+# 节内 `run = CommandListSkinTexture` 行（匹配含行首缩进，不含行尾换行），排除同名前缀
+SKIN_TEXTURE_RUN_LINE_PATTERN = re.compile(_ACTIVE_LINE_PREFIX + r'run\s*=\s*CommandListSkinTexture(?![\w\\])[^\n]*',
+                                           flags=_LINE_FLAGS)
+
+
+def get_last_zzmi_set_textures_line(section: str) -> re.Match | None:
+    """取节内最后一个 `run = CommandList\\ZZMI\\SetTextures` 行的匹配，没有则返回 None。"""
+    last_match = None
+    for last_match in ZZMI_SET_TEXTURES_LINE.finditer(section):
+        pass
+    return last_match
+
+
+def get_first_check_texture_override_line(section: str) -> re.Match | None:
+    """取节内第一个 `checktextureoverride = ...` 行的匹配，没有则返回 None。"""
+    return CHECK_TEXTURE_OVERRIDE_LINE.search(section)
+
+
+def get_skin_texture_run_lines(section: str) -> list:
+    """取节内所有 `run = CommandListSkinTexture` 行的匹配。"""
+    return list(SKIN_TEXTURE_RUN_LINE_PATTERN.finditer(section))
+
+
+def should_run_follow_zzmi(section: str) -> bool:
+    """判断 run = CommandListSkinTexture 是否必须放在最后一个 ZZMI SetTextures 行之后。
+
+    节内有 run = CommandList\\ZZMI\\SetTextures，且它没有被 checktextureoverride 挤到后面时成立；
+    若 checktextureoverride 本身就在 ZZMI 行之前（两条规则冲突，无法同时满足），则不按 ZZMI 规则，
+    退回 match_first_index / hash 之后的原逻辑。
+    """
+    zzmi_match = get_last_zzmi_set_textures_line(section)
+    check_match = get_first_check_texture_override_line(section)
+
+    if zzmi_match is None:
+        return False
+    if check_match is not None and check_match.start() < zzmi_match.end():
+        return False
+    return True
+
+
+def needs_skin_texture_run(section: str) -> bool:
+    """判断节内是否需要（重新）放置 run = CommandListSkinTexture。
+
+    - 完全没有该行：需要添加；
+    - 有该行但有 checktextureoverride 时，该行在 checktextureoverride 之后：位置错误，会导致贴图错误；
+    - 有该行且需要跟在 ZZMI 行之后，但该行在 ZZMI 行之前：位置错误，会被 ZZMI 覆盖；
+    - 其他（原逻辑的匹配位置）：不需要改动。
+    """
+    run_matches = get_skin_texture_run_lines(section)
+    if not run_matches:
+        return True
+
+    first_run   = min(run_matches, key=lambda match: match.start())
+    check_match = get_first_check_texture_override_line(section)
+    zzmi_match  = get_last_zzmi_set_textures_line(section)
+
+    if check_match is not None and first_run.start() > check_match.start():
+        return True
+    if should_run_follow_zzmi(section) and first_run.start() < zzmi_match.end():
+        return True
+    return False
+
+
+def place_skin_texture_run(section: str, anchor_pattern: str) -> str:
+    """放置 run = CommandListSkinTexture，返回新的节内容。
+
+    位置规则：需要跟在 ZZMI 行之后时放最后一个 ZZMI 行之后（缩进与其一致）；
+    否则沿用原逻辑，放在 anchor_pattern（match_first_index / hash）匹配行的后面；
+    但若锚点位置落在 checktextureoverride 之后，则改放到第一个 checktextureoverride 行之前。
+    位置已符合规则时原样返回；位置错误的旧行会被删除后重新插入。
+    """
+    run_matches = get_skin_texture_run_lines(section)
+
+    if run_matches and not needs_skin_texture_run(section):
+        return section
+
+    # 先删掉位置错误的旧行，再重新插入
+    if run_matches:
+        pieces = []
+        cursor = 0
+        for run_match in run_matches:
+            line_end = section.find('\n', run_match.end())
+            line_end = len(section) if line_end == -1 else line_end + 1  # 行尾换行一并删除
+            pieces.append(section[cursor:run_match.start()])
+            cursor = line_end
+        pieces.append(section[cursor:])
+        section = ''.join(pieces)
+
+    if should_run_follow_zzmi(section):
+        zzmi_match = get_last_zzmi_set_textures_line(section)
+        indent_match = re.match(r'[ \t]*', zzmi_match.group())
+        indent = indent_match.group() if indent_match else ''
+        return (section[:zzmi_match.end()]
+                + '\n' + indent + SKIN_TEXTURE_RUN_LINE
+                + section[zzmi_match.end():])
+
+    anchor_match = re.search(anchor_pattern, section, flags=re.IGNORECASE)
+    check_match  = get_first_check_texture_override_line(section)
+
+    if check_match is not None and (anchor_match is None or anchor_match.end() > check_match.start()):
+        # 锚点位置会落在 checktextureoverride 之后：改放到第一个 checktextureoverride 行之前
+        indent_match = re.match(r'[ \t]*', check_match.group())
+        indent = indent_match.group() if indent_match else ''
+        return (section[:check_match.start()]
+                + indent + SKIN_TEXTURE_RUN_LINE + '\n'
+                + section[check_match.start():])
+
+    if anchor_match is None:
+        return section  # 找不到锚点行，保持原样
+
+    return (section[:anchor_match.end()] + SKIN_TEXTURE_RUN_LINE + '\n'
+            + section[anchor_match.end():])
+
+
 @dataclass()
 class add_ib_check_if_missing():
 
     def execute(self, default_args: DefaultArgs):
         ini  = default_args.ini
         hash = default_args.hash
-        
+
         pattern         = get_section_hash_pattern(hash)
         section_matches = pattern.finditer(ini.content)
 
         has_indexed = False
         needs_check = False
 
-        # 第一遍：判断是否存在索引节，以及是否已经都有 run = CommandListSkinTexture
+        # 第一遍：判断是否存在索引节，以及是否已经都有 run = CommandListSkinTexture（含位置是否正确）
         for section_match in section_matches:
             if not re.search(r'\n\s*match_first_index\s*=', section_match.group(1), flags=re.IGNORECASE):
                 continue
             has_indexed = True
-            if not re.search(r'\n\s*run\s*=\s*CommandListSkinTexture', section_match.group(1), flags=re.IGNORECASE):
+            if needs_skin_texture_run(section_match.group(1)):
                 needs_check = True
                 break
 
@@ -1965,15 +2296,13 @@ class add_ib_check_if_missing():
                 last_section_match = section_match
                 if re.search(r'\n\s*handling\s*=\s*skip', section_match.group(1), flags=re.IGNORECASE):
                     found_skip = True
-                    if not re.search(r'\n\s*run\s*=\s*CommandListSkinTexture', section_match.group(1),
-                                     flags=re.IGNORECASE):
+                    if needs_skin_texture_run(section_match.group(1)):
                         needs_check = True
                     break
 
             # 兜底：没有 handling = skip 的节，取最后一个节
             if not found_skip and last_section_match is not None:
-                if not re.search(r'\n\s*run\s*=\s*CommandListSkinTexture', last_section_match.group(1),
-                                 flags=re.IGNORECASE):
+                if needs_skin_texture_run(last_section_match.group(1)):
                     needs_check = True
 
         if not needs_check:
@@ -1991,36 +2320,29 @@ class add_ib_check_if_missing():
         section_matches = pattern.finditer(ini.content)
         new_content = ini.content
         for section_match in section_matches:
-            has_index = re.search(r'\n\s*match_first_index\s*=', section_match.group(1), flags=re.IGNORECASE)
-            has_run = re.search(r'\n\s*run\s*=\s*CommandListSkinTexture', section_match.group(1), flags=re.IGNORECASE)
-            has_skip = re.search(r'\n\s*handling\s*=\s*skip', section_match.group(1), flags=re.IGNORECASE)
+            section = section_match.group()
+            has_index = re.search(r'\n\s*match_first_index\s*=', section, flags=re.IGNORECASE)
+            has_skip = re.search(r'\n\s*handling\s*=\s*skip', section, flags=re.IGNORECASE)
 
-            if has_run:
-                continue  # 已有，跳过
+            if not needs_skin_texture_run(section):
+                continue  # 已有且位置正确，跳过
 
             if has_indexed and has_index:
-                # 索引节，在 match_first_index 后插入
-                new_section = re.sub(
-                    r'\n\s*match_first_index\s*=.*?\n',
-                    r'\g<0>run = CommandListSkinTexture\n',
-                    section_match.group(),
-                    flags=re.IGNORECASE, count=1
-                )
-                new_content = new_content.replace(section_match.group(), new_section, 1)
+                # 索引节，锚点为 match_first_index 行
+                anchor_pattern = r'\n\s*match_first_index\s*=.*?\n'
+            elif not has_indexed and has_skip:
+                # 无索引情况，只动 handling = skip 的主节，锚点为 hash 行
+                anchor_pattern = r'\n\s*hash\s*=.*?\n'
+            else:
+                # 其他无索引节（CheckHash 等）→ 完全不动
+                continue
 
-            elif not has_indexed:
-                if has_skip:
-                    # 无索引情况，只动 handling = skip 的主节，在 hash 行后插入
-                    new_section = re.sub(
-                        r'\n\s*hash\s*=.*?\n',
-                        r'\g<0>run = CommandListSkinTexture\n',
-                        section_match.group(),
-                        flags=re.IGNORECASE, count=1
-                    )
-                    new_content = new_content.replace(section_match.group(), new_section, 1)
-                    break  # 只动第一个 handling = skip 的节，后续不再处理
+            new_section = place_skin_texture_run(section, anchor_pattern)
+            if new_section != section:
+                new_content = new_content.replace(section, new_section, 1)
 
-            # 其他无索引节（CheckHash 等）→ 完全不动
+            if not has_indexed:
+                break  # 只动第一个 handling = skip 的节，后续不再处理
 
         # 兜底：第二遍没有找到 handling = skip 的节，对最后一个节插入
         if not has_indexed and not any(
@@ -2030,15 +2352,11 @@ class add_ib_check_if_missing():
             last_match = None
             for last_match in pattern.finditer(ini.content):
                 pass
-            if last_match and not re.search(r'\n\s*run\s*=\s*CommandListSkinTexture', last_match.group(1),
-                                            flags=re.IGNORECASE):
-                new_section = re.sub(
-                    r'\n\s*hash\s*=.*?\n',
-                    r'\g<0>run = CommandListSkinTexture\n',
-                    last_match.group(),
-                    flags=re.IGNORECASE, count=1
-                )
-                new_content = new_content.replace(last_match.group(), new_section, 1)
+            if last_match:
+                last_section = last_match.group()
+                new_section = place_skin_texture_run(last_section, r'\n\s*hash\s*=.*?\n')
+                if new_section != last_section:
+                    new_content = new_content.replace(last_section, new_section, 1)
 
         ini.content = new_content
 
@@ -4316,7 +4634,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('1d5d53cd', 'Cissia.BodyC.MaterialMap.2048')),
     ],
 
-    # MARK: Claret
+    # MARK: Claret克拉蕾
     #IB
     'd942b3a7': [(log, ('3.2: Claret Body IB Hash',)), (add_ib_check_if_missing,)],
     '6467d6c6': [(log, ('3.2: Claret Face IB Hash',)), (add_ib_check_if_missing,)],
@@ -4327,7 +4645,7 @@ hash_commands = {
     #VB
 
     #Texture纹理
-    # Face脸部
+    # Face-脸部
     '05b25205': [
         (log,                           ('3.2: Claret FaceA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('3caf81d7', 'Claret.FaceA.Diffuse.1024')),
@@ -4337,7 +4655,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('05b25205', 'Claret.FaceA.Diffuse.2048')),
     ],
     
-    # Hair
+    # Hair-头发
     '27ff9425': [
         (log,                           ('3.2: Claret HairA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('539c1df5', 'Claret.HairA.Diffuse.1024')),
@@ -4363,7 +4681,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('f328bcde', 'Claret.HairA.MaterialMap.2048')),
     ],
     
-    # Body
+    # Body-身体
     '49f33d8f': [
         (log,                           ('3.2: Claret BodyA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('e2cd795e', 'Claret.BodyA.Diffuse.1024')),
@@ -4389,7 +4707,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('875e4282', 'Claret.BodyA.MaterialMap.2048')),
     ],
         
-    # Leg
+    # Leg-腿部
     '54b5a00b': [
         (log,                           ('3.2: Claret LegA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('76b905e9', 'Claret.LegA.Diffuse.1024')),
@@ -4415,7 +4733,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('6c63f8ce', 'Claret.LegA.MaterialMap.2048')),
     ],
     
-    # weapon
+    # weapon-武器
     '9ff6afae': [
         (log,                           ('3.2: Claret weaponA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('98c65984', 'Claret.weaponA.Diffuse.1024')),
@@ -7739,6 +8057,7 @@ hash_commands = {
             'trg_indices': ['0', '59094'],
         })],
     #Texture纹理
+    # Face-脸部
     'baf9e1be': [
         (log,                           ('3.1: Remielle Face-脸 Diffuse Hash',)),
         (multiply_section_if_missing,   ('5bc2bbdd', 'Remielle.FaceA.Diffuse.2048')),
@@ -7747,7 +8066,7 @@ hash_commands = {
         (log,                           ('3.1: Remielle Face-脸 Diffuse Hash',)),
         (multiply_section_if_missing,   ('baf9e1be', 'Remielle.FaceA.Diffuse.1024')),
     ],
-    # Body
+    # Body-身体
     'e51be5d1': [
         (log,                           ('3.1: Remielle BodyA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('d770d330', 'Remielle.BodyA.Diffuse.1024')),
@@ -7773,7 +8092,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('61c42d63', 'Remielle.BodyA.MaterialMap.2048')),
     ],
         
-    # Hair
+    # Hair-头发
     '578239d7': [
         (log,                           ('3.1: Remielle HairA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('8a619774', 'Remielle.HairA.Diffuse.1024')),
@@ -7799,7 +8118,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('b5a12580', 'Remielle.HairA.MaterialMap.2048')),
     ],
     
-    # Leg
+    # Leg-腿部
     '6538d30d': [
         (log,                           ('3.1: Remielle LegA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('49ac9d9e', 'Remielle.LegA.Diffuse.1024')),
@@ -7825,7 +8144,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('cdc2accb', 'Remielle.LegA.MaterialMap.2048')),
     ],
     
-    # Wings
+    # Wings-翅膀
     '80ad86c3': [
         (log,                           ('3.1: Remielle WingsA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('cdc91dce', 'Remielle.WingsA.Diffuse.1024')),
@@ -7879,7 +8198,7 @@ hash_commands = {
             'trg_indices': ['0', '15546'],
         })],
     #Texture纹理
-    # Body
+    # Body-身体
     '0e408177': [(log, ('3.1 -> 3.2: RemielleSkinBlack BodyA Diffuse 2048p Hash',)), (update_hash, ('bb0f08b9',))],
     'bb0f08b9': [
         (log,                           ('3.2: RemielleSkinBlack BodyA Diffuse 2048p Hash',)),
@@ -7911,7 +8230,7 @@ hash_commands = {
         (multiply_section_if_missing,   (('cccb8109','8240c688'), 'RemielleSkinBlack.BodyA.MaterialMap.2048')),
     ],
     
-    # Leg
+    # Leg-腿部
     '877b0ce6': [(log, ('3.1 -> 3.2: RemielleSkinBlack LegA Diffuse 2048p Hash',)), (update_hash, ('017c13e4',))],
     '017c13e4': [
         (log,                           ('3.2: RemielleSkinBlack LegA Diffuse 2048p Hash',)),
@@ -7943,7 +8262,7 @@ hash_commands = {
         (multiply_section_if_missing,   (('3b0c9e0a','fb096287'), 'RemielleSkinBlack.LegA.MaterialMap.2048')),
     ],
     
-    # Wings
+    # Wings-翅膀
     '677ec0d0': [
         (log,                           ('3.1: RemielleSkinBlack WingsA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('b8574ee2', 'RemielleSkinBlack.WingsA.Diffuse.1024')),
@@ -7969,7 +8288,7 @@ hash_commands = {
             'trg_indices': ['0', '56736'],
         })],
     #Texture纹理
-    # Body
+    # Body-身体
     '686a0805': [
         (log,                           ('3.1: RemielleSkinWhite BodyA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('fb0f2f5d', 'RemielleSkinWhite.BodyA.Diffuse.1024')),
@@ -7995,7 +8314,7 @@ hash_commands = {
         (multiply_section_if_missing,   ('fb91abe9', 'RemielleSkinWhite.BodyA.MaterialMap.2048')),
     ],
     
-    # Leg
+    # Leg-腿部
     '517d9d7c': [
         (log,                           ('3.1: RemielleSkinWhite LegA Diffuse 2048p Hash',)),
         (multiply_section_if_missing,   ('1fb64395', 'RemielleSkinWhite.LegA.Diffuse.1024')),
@@ -8107,6 +8426,132 @@ hash_commands = {
         (add_section_if_missing,        ('2825da1e', 'Rina.Body.IB', 'match_priority = 0\n')),
         (multiply_section_if_missing,   ('ed47722f', 'Rina.BodyA.MaterialMap.2048')),
     ],
+
+    # MARK: Roxy洛克茜
+    #IB
+    '09c39441': [(log, ('3.2: Roxy Accessories-腰部饰品 IB Hash',)), (add_ib_check_if_missing,)],
+    'd5e1e7ff': [(log, ('3.2: Roxy Body-身体 IB Hash',)), (add_ib_check_if_missing,)],
+    '224a50cf': [(log, ('3.2: Roxy Eyebrow-眉毛 IB Hash',)), (add_ib_check_if_missing,)],
+    'e40b00b2': [(log, ('3.21: Roxy Face-脸 IB Hash',)), (add_ib_check_if_missing,)],
+    '3f797188': [(log, ('3.2: Roxy Glasses-眼镜 IB Hash',)), (add_ib_check_if_missing,)],
+    '4e6e989e': [(log, ('3.21: Roxy Hair-头发 IB Hash',)), (add_ib_check_if_missing,)],
+    '89fc5b32': [(log, ('3.2: Roxy HairShadow-头发阴影 IB Hash',)), (add_ib_check_if_missing,)],
+    '4e6d8882': [(log, ('3.2: Roxy Headwear-头饰 IB Hash',)), (add_ib_check_if_missing,)],
+    #VB
+    '551c5f22': [(log, ('3.21: Roxy Face-脸 blend_vb Hash',)), (update_hash, ('c0b23b8b',))],
+    '75b3aa9c': [
+        (log, ('3.2 -> 3.21: Roxy Face-脸 IB Hash',)),
+        (update_hash, ('e40b00b2',)),
+        (transfer_indexed_sections, {
+            'src_indices': ['0', '7350', '9216'],
+            'trg_indices': ['0', '6996', '9216'],
+            'src_counts': ['7350', '1866', '1092'],
+            'trg_counts': ['6996', '2220', '1092'],
+        })],
+    'e8bed423': [(log, ('3.21: Roxy Face-脸 texcoord_vb Hash',)), (update_hash, ('c90eb75c',))],
+
+    '520d6267': [(log, ('3.21: Roxy Hair-头发 blend_vb Hash',)), (update_hash, ('831dc545',))],
+    '2533ab1c': [
+        (log, ('3.2 -> 3.21: Roxy Hair-头发 IB Hash',)),
+        (update_hash, ('4e6e989e',)),
+        (transfer_indexed_sections, {
+            'src_indices': ['0', '12435', '14712'],
+            'trg_indices': ['0', '11700'],
+            'src_counts': ['12435', '2277', '192'],
+            'trg_counts': ['11700', '3204'],
+            'drop_indices': ['14712'],
+        })],
+    '1fdb833a': [(log, ('3.21: Roxy Hair-头发 position_vb Hash',)), (update_hash, ('8d17b17d',))],
+    'b44f7eda': [(log, ('3.21: Roxy Hair-头发 texcoord_vb Hash',)), (update_hash, ('77598722',))],
+    #Texture纹理
+    # Body-身体
+    'da5be24c': [
+        (log,                           ('3.2: Roxy BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('7bf9af64', 'Roxy.BodyA.Diffuse.1024')),
+    ],
+    '7bf9af64': [
+        (log,                           ('3.2: Roxy BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('da5be24c', 'Roxy.BodyA.Diffuse.2048')),
+    ],
+    'e3703d1f': [
+        (log,                           ('3.2: Roxy BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('bb36eee9', 'Roxy.BodyA.LightMap.1024')),
+    ],
+    'bb36eee9': [
+        (log,                           ('3.2: Roxy BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('e3703d1f', 'Roxy.BodyA.LightMap.2048')),
+    ],
+    '44ed4f24': [
+        (log,                           ('3.2: Roxy BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('eda0dc75', 'Roxy.BodyA.MaterialMap.1024')),
+    ],
+    'eda0dc75': [
+        (log,                           ('3.2: Roxy BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('44ed4f24', 'Roxy.BodyA.MaterialMap.2048')),
+    ],
+    
+    # Face-脸
+    '126d4a26': [
+        (log,                           ('3.2: Roxy FaceA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('9f3fd4ad', 'Roxy.FaceA.Diffuse.1024')),
+    ],
+    '9f3fd4ad': [
+        (log,                           ('3.2: Roxy FaceA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('126d4a26', 'Roxy.FaceA.Diffuse.2048')),
+    ],
+    
+    # Hair-头发
+    'ba531329': [
+        (log,                           ('3.2: Roxy HairA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('c4ef3f52', 'Roxy.HairA.Diffuse.1024')),
+    ],
+    'c4ef3f52': [
+        (log,                           ('3.2: Roxy HairA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('ba531329', 'Roxy.HairA.Diffuse.2048')),
+    ],
+    '7885a317': [
+        (log,                           ('3.2: Roxy HairA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('311b79f8', 'Roxy.HairA.LightMap.1024')),
+    ],
+    '311b79f8': [
+        (log,                           ('3.2: Roxy HairA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('7885a317', 'Roxy.HairA.LightMap.2048')),
+    ],
+    '4a701d9e': [
+        (log,                           ('3.2: Roxy HairA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('613d838a', 'Roxy.HairA.MaterialMap.1024')),
+    ],
+    '613d838a': [
+        (log,                           ('3.2: Roxy HairA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('4a701d9e', 'Roxy.HairA.MaterialMap.2048')),
+    ],
+    
+    # weapon-武器
+    '805216e1': [
+        (log,                           ('3.2: Roxy weaponA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('bcd2c443', 'Roxy.weaponA.Diffuse.1024')),
+    ],
+    'bcd2c443': [
+        (log,                           ('3.2: Roxy weaponA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('805216e1', 'Roxy.weaponA.Diffuse.2048')),
+    ],
+    '7715da05': [
+        (log,                           ('3.2: Roxy weaponA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('386872a5', 'Roxy.weaponA.LightMap.1024')),
+    ],
+    '386872a5': [
+        (log,                           ('3.2: Roxy weaponA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('7715da05', 'Roxy.weaponA.LightMap.2048')),
+    ],
+    'b88ed702': [
+        (log,                           ('3.2: Roxy weaponA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('57006300', 'Roxy.weaponA.MaterialMap.1024')),
+    ],
+    '57006300': [
+        (log,                           ('3.2: Roxy weaponA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('b88ed702', 'Roxy.weaponA.MaterialMap.2048')),
+    ],
+
 
     # MARK: Seed 席德
     #IB
@@ -10978,7 +11423,8 @@ def _relaunch_command():
     """重启命令：exe 直接重跑；py 用原解释器带上原参数"""
     tgt = _program_target()
     if getattr(sys, 'frozen', False):
-        return [tgt]
+        # 只把黑窗开关带回去：GUI 重启时不该把拖进来的路径再修一遍
+        return [tgt] + (['--cli'] if _console_mode_requested() else [])
     return [sys.executable, tgt] + list(sys.argv[1:])
 
 
@@ -11220,6 +11666,8 @@ def _build_update_cmd(zip_dest):
         if _cmd_escape(s) is None:
             return None
     exe_name = os.path.basename(exe)
+    # 更新完的重启要回到同一个模式：黑窗模式别被弹成 GUI
+    cargs = ' --cli' if _console_mode_requested() else ''
     cmd_path = os.path.join(fdir, UPD_CMD_NAME)
     ps1_path = os.path.join(fdir, UPD_PS1_NAME)
     try:
@@ -11250,16 +11698,17 @@ def _build_update_cmd(zip_dest):
             'if not exist "%EXE%" goto fail',
             'if exist "%PS1%" del /q "%PS1%" >nul 2>&1',
             'cd /d "%DIR%"',
-            'start "" "%EXE%"',
+            'start "" "%EXE%"{cargs}',
             'exit /b 0',
             ':fail',
             'if not exist "%DIR%\\.upd_fail.txt" echo UPD_FAIL:UNKNOWN> "%DIR%\\.upd_fail.txt"',
             'if exist "%PS1%" del /q "%PS1%" >nul 2>&1',
-            'start "" "%EXE%"',
+            'start "" "%EXE%"{cargs}',
             'exit /b 1',
         ]
         text = '\r\n'.join(lines).format(pid=os.getpid(), fdir=fdir,
-                                         ps1=ps1_path, ename=exe_name)
+                                         ps1=ps1_path, ename=exe_name,
+                                         cargs=cargs)
         with open(cmd_path, 'w', encoding='gbk') as f:
             f.write(text)
         return cmd_path
@@ -11674,8 +12123,45 @@ def register_drop_targets(root, handler):
 IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
 ================================================
 
+怎么用（三步）
+------------------------------------------------
+    本工具在窗口左边竖排标签栏里，点「索引与顶点修复」就是它。
+
+    前提：先用【版本Hash修复】把 mod 的 ini 里的 hash 更新到最新。
+        没跑过这一步，本工具一个都不会修。
+
+    第 1 步  选参照
+        在「参照文件夹」下拉框里选一组（名字就是 dump 里的文件夹名，
+        例如 琉音-腿、艾莲-腿）。想修哪个就选哪一组 —— 选错整包不修。
+        用「通用脸部修复」模式时没有这一项，跳过。
+
+    第 2 步  填要修的 mod
+        在「修复目标路径」里填【这一个 mod 的文件夹】：点「选择路径」挑，
+        或者直接把文件夹拖进窗口（拖进来的是 dump 文件夹就当参照读）。
+        一次只能填一个 —— 别把整个 Mods 目录填进来，会把别的 mod 一起扫。
+
+    第 3 步  点「▶ 开始修复」
+        工具先把发现的问题列出来，弹窗让你确认，你点确认它才动手写文件。
+        每个文件改之前都自动备份，改错了点「↩ 还原」按备份退回去。
+
+    没修好？对着日志看：
+        - 说没命中参照        =「参照文件夹」选错组了，换一组再来
+        - 说 ini 里 hash 是旧的 = 先跑【版本Hash修复】，再跑本工具
+        - 说这个网格没有 dump  = 作者还没提供参照，反馈给作者补一份
+        - 说已修过、自动跳过    = 一个 buf 只修一次，正常，不用管
+
+看不懂的词（几个常见的）
+------------------------------------------------
+    mod 文件夹   下载来的那个文件夹，里面有 .ini 和 .buf
+    ini          mod 的文本配置；工具要改它里面的 hash 和 stride
+    buf          数据文件，模型 / 贴图数据在里面
+    hash         ini 里那串 8 位十六进制；游戏一更新它就会变
+    dump         参照数据（作者抓的），工具拿它跟你的 mod 对着修
+    参照         本次要用的那组 dump
+
 这是什么
-    修两类问题，一次一个 mod：
+------------------------------------------------
+    一次只修一个 mod，修两类问题：
 
     一、骨骼索引（VGX）   blend.buf 里的骨骼索引被写错了
         症状：模型变形 —— 腿弯、塌陷、扭曲，但贴图正常
@@ -11692,7 +12178,7 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
 
     两类互相独立，哪个命中修哪个；都没命中就什么都不做。
 
-两种模式（面板顶上那排按钮切）
+两种模式（面板最上面那排按钮切）
 ------------------------------------------------
     索引与顶点修复（默认）
         就是上面那两类，按“参照文件夹”里选的那组 dump 走，要先选参照。
@@ -11717,24 +12203,7 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
         推出来时，如果 dump 里这个网格绑了不止一张贴图，会多提醒一句 ——
         那种网格补 0 会让那层贴图失效。
 
-怎么用
-------------------------------------------------
-    1. 先在“参照文件夹”里选这次用哪一组参照（通用脸部修复模式跳过这步）。
-       分组按【dump 里的文件夹名】走，不按角色合并 —— 一个文件夹 = 一组参照。
-       dump\\ 里有几个文件夹就列几组（琉音-脸、琉音-腿、艾莲-腿 ……）。
-       只拿这一组的 dump 当参照，不做跨组匹配，所以这一步要选对。
-
-    2. 在“修复目标路径”里填【那个 mod 的文件夹】。
-       一次只填一个 —— 工具是递归扫整个文件夹找 ini / buf 的，
-       别把整个 Mods 目录拖进来，否则会扫到别的 mod。
-       也可以直接把文件夹拖进窗口（拖进来是 dump 文件夹就当参照读）。
-
-    3. 点“▶ 开始修复”：先把命中的问题列出来，弹窗确认后才写文件。
-       每个文件改前都会自动备份，改错了点“↩ 还原”按备份退回去。
-
-    前提：mod 的 ini 里 hash 必须已经是当前版本 —— 先跑【版本Hash修复】。
-
-参照文件夹管到哪 (选错 = 整包不修)
+参照文件夹怎么选 (选错 = 整包不修)
 ------------------------------------------------
     开修之前先拿 mod 的 ini 里的 hash 跟本次这组参照对一次：
 
@@ -11801,7 +12270,13 @@ dump 参照
                     xxx.texfmt_DONE.empty           已修标记
                     （旧工具留下的 .tex48_BACKUP.buf / .tex48.bak 还原时也认）
 
-    只认本工具的备份；旧工具那种改名式备份（DISABLED_BACKUP_*）要手动改名回来。
+    只认本工具的备份。
+    版本Hash修复留下的改名式备份（DISABLED_BACKUP_*.ini）不用手动改名：
+    切到【版本Hash修复】标签，点那一行里的“↩ 还原”，
+    每一项默认按最早的一份（最接近原版）退回，用掉的那份备份会删掉。
+    那个还原只碰 ini，不动缓冲区；一次只放一个 mod，
+    路径只认“手动修复路径”那一栏，默认修复路径不参与。
+    还原前会把当前 ini 按备份规则另存一份，所以还原本身也能再还原。
 
 注意事项
     - 一个 buf 不要跑两次（有备份 / 标记的会自动跳过）
@@ -11937,6 +12412,38 @@ class IvConsoleAsker:
         """还原确认：返回 True = 动手（明细行由调用方打印）"""
         print('输入 {}{}{} 回车执行还原。'.format(Style.GREEN, CONFIRM_WORD, Style.RESET))
         return ask().lower() == CONFIRM_WORD
+
+    def pick_restore(self, mod_label, groups):
+        """版本Hash修复的改名式备份还原：返回 {组下标: 候选项下标}。
+
+        返回 None = 整单取消；返回空 dict = 全部跳过。
+        组下标对应的值是候选项下标，候选值为 None 的项 = 跳过，不进返回值。
+        """
+        print('{}：{}'.format(c('还原 .ini 的改名式备份', Style.CYAN), mod_label))
+        print('  只还原 ini，不动缓冲区；用掉的那份备份会删掉。')
+        answer = ask('  输入 {}y{} 回车继续（直接回车 = 取消）: '.format(
+            Style.GREEN, Style.RESET)).strip().lower()
+        if answer not in ('y', 'yes', '1', '是'):
+            return None
+
+        picks = {}
+        for index, group in enumerate(groups):
+            note = '' if group['exists'] else '（原文件已不在）'
+            print('  {} {}'.format(group['name'], note))
+            options = hash_restore_options(group)
+            for number, (label, _value, fname) in enumerate(options, 1):
+                tail = '  <- {}'.format(fname) if fname else ''
+                print('    {}{}{} = {}{}'.format(Style.GREEN, number, Style.RESET, label, tail))
+            raw = ask('  选编号（回车 = 1 推荐，0 = 跳过这项）: ').strip()
+            if raw == '0':
+                continue
+            if raw.isdigit() and 1 <= int(raw) <= len(options):
+                value = options[int(raw) - 1][1]
+            else:
+                value = options[0][1]
+            if value is not None:
+                picks[index] = value
+        return picks
 
     def progress(self, done, total, text):
         """命令行不画进度条，什么都不做"""
@@ -13928,6 +14435,147 @@ def restore(target: Path):
 
 
 # ==========================================================================
+#  三之二、版本Hash修复的还原（只认 .ini 的改名式备份）
+#
+#  版本Hash修复改文件前会把原件改名成 DISABLED_BACKUP_<Unix秒>.<原文件名>，
+#  再往原路径写新内容（见 Ini.save，1514-1555）。这里只做读取侧的还原：
+#  去掉前缀、去掉紧跟的一串数字和那个点，剩下的就是同目录下的原文件名。
+#  写入侧的命名逻辑一行没动。
+#
+#  只处理 .ini：改动过的 .buf 备份一律不看，还原不会碰缓冲区。
+#  同一个 ini 可能有多份备份（跑过多次修复/还原），全部列出，
+#  默认推荐时间戳最早的那份 —— 那是最接近原始的一份。
+# ==========================================================================
+
+HASH_BACKUP_PREFIX = 'DISABLED_BACKUP_'
+HASH_BACKUP_RE = re.compile(r'^' + HASH_BACKUP_PREFIX + r'(\d+)\.(.+)$', re.IGNORECASE)
+
+
+def hash_backup_time(stamp):
+    """Unix 秒 -> 本地可读时间；换算不了就原样返回数字"""
+    try:
+        return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(stamp)))
+    except (OSError, ValueError, OverflowError):
+        return str(stamp)
+
+
+def scan_hash_backups(root: Path):
+    """扫 root 下所有 .ini 的改名式备份，按 (目录, 原文件名) 分组。
+
+    返回 [{'dir': Path, 'name': '01.ini', 'target': Path, 'exists': bool,
+           'items': [{'path': Path, 'ts': int}, ...]}, ...]
+    items 按 ts 升序 —— items[0] 就是推荐项（最早 = 最接近原始）。
+    正则不匹配的、以及非 .ini 的（各种 .buf 备份），一律跳过。
+    """
+    groups = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        # 跟别处的扫描保持一致：DESKTOP 开头的目录不看
+        dirnames[:] = [d for d in dirnames if not d.upper().startswith('DESKTOP')]
+        for filename in filenames:
+            match = HASH_BACKUP_RE.match(filename)
+            if not match:
+                continue
+            name = match.group(2)
+            if not name.lower().endswith('.ini'):
+                continue                      # 只认 ini，缓冲区备份不还原
+            key = (os.path.normcase(dirpath), os.path.normcase(name))
+            group = groups.get(key)
+            if group is None:
+                group = groups[key] = {
+                    'dir': Path(dirpath), 'name': name, 'items': [],
+                }
+            group['items'].append({
+                'path': Path(dirpath) / filename,
+                'ts': int(match.group(1)),
+            })
+
+    result = list(groups.values())
+    for group in result:
+        group['items'].sort(key=lambda item: (item['ts'], os.path.normcase(item['path'].name)))
+        group['target'] = group['dir'] / group['name']
+        group['exists'] = group['target'].exists()
+    result.sort(key=lambda group: (os.path.normcase(str(group['dir'])),
+                                   os.path.normcase(group['name'])))
+    return result
+
+
+def hash_restore_options(group):
+    """一个目标的下拉项：[(下拉文案, 候选项下标或 None, 备份文件名或 None), ...]。
+
+    第一项是推荐。下拉里只放「推荐/备选 + 时间」这种短文案，
+    完整备份文件名交给调用方单独显示 —— 塞进下拉会被宽度截掉。
+    """
+    options = []
+    for index, item in enumerate(group['items']):
+        mark = '★ 推荐（最早）' if index == 0 else '备选 {}'.format(index + 1)
+        options.append(('{} · {}'.format(mark, hash_backup_time(item['ts'])),
+                        index, item['path'].name))
+    options.append(('不还原这个文件', None, None))
+    return options
+
+
+def new_hash_backup_path(dir_path, name):
+    """照版本Hash修复的命名规则，给 name 造一个还没被占用的备份路径：
+
+        DISABLED_BACKUP_<Unix秒>.<去掉 .ini 的名字>.ini
+
+    跟 Ini.save() 里那条规则完全一致（1518 行），所以存出来的这份，
+    下次扫描能当成普通备份认出来，也就意味着还原本身可以再还原。
+    同一秒里已经有同名备份时把时间戳往后挪一秒，别撞名。
+    """
+    base = name.split('.ini')[0]
+    stamp = int(time.time())
+    while True:
+        candidate = Path(dir_path) / '{}{}.{}.ini'.format(HASH_BACKUP_PREFIX, stamp, base)
+        if not candidate.exists():
+            return candidate
+        stamp += 1
+
+
+def apply_hash_restore(groups, picks):
+    """picks: {组下标: 候选项下标}。逐个：当前 ini 先存一份 -> 写回备份 -> 删掉用过的那份备份。
+
+    返回 (成功数, 失败数)。单个文件出错不中断整批；
+    任何一步炸了都不删备份 —— 留着让用户重试。
+    """
+    ok = fail = 0
+    total = len(picks)
+    for done, index in enumerate(sorted(picks), 1):
+        group = groups[index]
+        item = group['items'][picks[index]]
+        target = group['target']
+        iv_progress(done, total, group['name'])
+        saved = None
+        try:
+            existed = target.exists()
+            if existed:
+                # 先把当前 ini 按备份规则存一份，还原才反悔得回来
+                saved = new_hash_backup_path(group['dir'], group['name'])
+                saved.write_bytes(target.read_bytes())
+            target.write_bytes(item['path'].read_bytes())
+        except Exception as e:
+            fail += 1
+            print(c('还原失败: "{}"（{}）'.format(target, e), Style.RED))
+            if saved is not None and saved.exists():
+                # 没还原成，就别留下刚存的那份，免得越堆越多
+                try:
+                    saved.unlink()
+                except Exception:
+                    pass
+            continue
+        try:
+            item['path'].unlink()
+        except Exception as e:
+            print(c('已还原，但备份没能删掉: "{}"（{}）'.format(item['path'], e), Style.YELLOW))
+        ok += 1
+        print(c('已还原: "{}"{}'.format(
+            target, '' if existed else '（原文件已不在，已重新创建）'), Style.GREEN))
+        if saved is not None:
+            print('  改前的那份已存为: "{}"（想反悔就再还原它）'.format(saved.name))
+    return ok, fail
+
+
+# ==========================================================================
 #  四、修复主流程
 # ==========================================================================
 
@@ -14510,6 +15158,12 @@ class IvGuiAsker:
                                             [('确认还原', True), ('取消', False)], False),
             False))
 
+    def pick_restore(self, mod_label, groups):
+        """版本Hash修复的改名式备份还原：返回 {组下标: 候选项下标}。
+        None = 取消，{} = 全部跳过。弹窗在主线程做，这里原地等结果。"""
+        value = self._ask(lambda: self.app._dialog_hash_restore(mod_label, groups), None)
+        return value if isinstance(value, dict) else None
+
     def progress(self, done, total, text):
         """写文件进度：主线程刷进度条"""
         try:
@@ -15012,6 +15666,9 @@ class App:
         self._bar_iv = tk.Frame(ar, bg=CARD)
         self.btn_run = self._btn(self._bar_hash, '▶ 开始修复', self.start_repair, accent=True)
         self.btn_run.pack(side='right')
+        # 版本Hash修复的还原：按 DISABLED_BACKUP_*.ini 把 ini 退回去（见 _dialog_hash_restore）
+        self.btn_hash_restore = self._btn(self._bar_hash, '↩ 还原', self.start_restore)
+        self.btn_hash_restore.pack(side='right', padx=(0, 8))
         # 链接按钮：mod指南 / 更多修复工具（网址见文件顶部 URL_MOD_GUIDE / URL_MORE_TOOLS）
         b1 = self._btn(self._bar_hash, 'Mod 指南', lambda: self._open_url(URL_MOD_GUIDE))
         b1.pack(side='left', padx=(0, 6))
@@ -15530,6 +16187,118 @@ class App:
         self.root.wait_window(win)
         return result['v']
 
+    def _dialog_hash_restore(self, mod_label, groups):
+        """版本Hash修复的还原确认框：一行一个 ini，下拉默认落在推荐（最早那份）。
+
+        返回 {组下标: 候选项下标}；取消 / 关窗 / Esc 返回 None。
+        只能主线程调用（工作线程经 IvGuiAsker 排过来）。
+        """
+        p = THEMES.get(self.theme, THEMES['dark'])
+        win = tk.Toplevel(self.root)
+        win.title('还原 .ini 的改名式备份')
+        win.configure(bg=p['CARD'])
+        win.transient(self.root)
+        win.resizable(False, True)
+        tk.Label(win, bg=p['CARD'], fg=p['TEXT'], font=(FONT, 10), justify='left', anchor='w',
+                 wraplength=660,
+                 text=('mod：{}\n\n找到 {} 个可以还原的 ini。只还原 ini，不动缓冲区；\n'
+                       '用掉的那份备份会删掉。每一行默认选最早的一份（推荐，最接近原始），\n'
+                       '下拉里选哪一份，下面那行就显示对应的完整备份文件名。\n\n'
+                       '还原前会把当前 ini 按备份规则另存一份，所以还原本身也能再还原。'
+                       ).format(mod_label, len(groups))).pack(padx=16, pady=(14, 8), fill='x')
+
+        host = tk.Frame(win, bg=p['CARD'])
+        host.pack(fill='both', expand=True, padx=16)
+        canvas = tk.Canvas(host, bg=p['CARD'], highlightthickness=0, width=660)
+        bar = tk.Scrollbar(host, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=bar.set)
+        bar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        inner = tk.Frame(canvas, bg=p['CARD'])
+        canvas.create_window((0, 0), window=inner, anchor='nw')
+        inner.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>',
+                    lambda e: canvas.itemconfigure(canvas.find_all()[0], width=e.width))
+        canvas.bind('<MouseWheel>',
+                    lambda e: canvas.yview_scroll(-1 if e.delta > 0 else 1, 'units'))
+
+        rows = []
+        for order, group in enumerate(groups):
+            card = tk.Frame(inner, bg=p['CARD'])
+            card.pack(fill='x', pady=(0, 10))
+            name = group['name'] if group['exists'] else group['name'] + '（原文件已不在）'
+            tk.Label(card, text=name, bg=p['CARD'],
+                     fg=p['TEXT'] if group['exists'] else p['STAT_WARN'],
+                     font=(FONT, 10, 'bold'), anchor='w').pack(fill='x')
+            options = hash_restore_options(group)
+            box = ttk.Combobox(card, state='readonly', font=(FONT, 9), width=44,
+                               values=[label for label, _value, _fname in options])
+            box.current(0)                       # 默认 = 推荐
+            box.pack(anchor='w', pady=(3, 2))
+            # 下拉宽度有限，完整备份文件名放这行单独显示，换选项就跟着变
+            detail = tk.Label(card, text='', bg=p['CARD'], fg=p['DIM'], font=(FONT, 8),
+                              anchor='w', justify='left', wraplength=620)
+            detail.pack(fill='x')
+
+            def sync(event=None, box=box, detail=detail, options=options):
+                _label, value, fname = options[box.current()]
+                detail.config(text='备份文件：{}'.format(fname) if value is not None
+                              else '不还原，保留现状（这份备份留在原地）。')
+
+            box.bind('<<ComboboxSelected>>', sync)
+            sync()
+            rows.append((order, group, options, box))
+
+        result = {}
+
+        def finish(value):
+            result['v'] = value
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            win.destroy()
+
+        def do_restore():
+            picks = {}
+            for order, _group, options, box in rows:
+                value = options[box.current()][1]
+                if value is not None:
+                    picks[order] = value
+            finish(picks)
+
+        row_bar = tk.Frame(win, bg=p['CARD'])
+        row_bar.pack(padx=16, pady=(10, 14), anchor='e')
+        for label, accent in (('开始还原', True), ('取消', False)):
+            tk.Button(row_bar, text=label, relief='flat', cursor='hand2',
+                      font=(FONT, 9, 'bold') if accent else (FONT, 9),
+                      padx=14, pady=6, highlightthickness=0,
+                      bg=ACCENT if accent else p['BTN'],
+                      fg='#191c22' if accent else p['TEXT'],
+                      activebackground='#ffcf00' if accent else p['BTN_H'],
+                      activeforeground='#191c22' if accent else p['TEXT'],
+                      command=do_restore if accent else (lambda: finish(None))
+                      ).pack(side='left', padx=(8, 0))
+        win.protocol('WM_DELETE_WINDOW', lambda: finish(None))
+        win.bind('<Escape>', lambda e: finish(None))
+        # 行少就紧凑，行多才出滚动条
+        win.update_idletasks()
+        try:
+            canvas.configure(height=min(max(inner.winfo_reqheight(), 40), 320))
+        except Exception:
+            pass
+        try:
+            win.update_idletasks()
+            x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
+            y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_height()) // 3
+            win.geometry('+{}+{}'.format(max(x, 0), max(y, 0)))
+        except Exception:
+            pass
+        win.grab_set()
+        win.focus_set()
+        self.root.wait_window(win)
+        return result.get('v')
+
     def _open_url(self, url):
         """在默认浏览器中打开网址（放线程防卡界面）"""
         threading.Thread(target=lambda: webbrowser.open(url), daemon=True).start()
@@ -15679,6 +16448,18 @@ class App:
                 clean = clean_gui_path(t)
                 if clean:
                     out.append(clean)
+        return out
+
+    def _manual_entry_paths(self):
+        """只拆「手动修复路径」这一栏。还原只用它，默认路径一概不参与"""
+        out = []
+        for t in re.split(r'[;；]', self.manual_entry.get() or ''):
+            t = t.strip()
+            if not t:
+                continue
+            clean = clean_gui_path(t)
+            if clean:
+                out.append(clean)
         return out
 
     def _save_paths(self):
@@ -15959,6 +16740,8 @@ class App:
                     self._file_mode = 'busy'
             elif ev[0] == "iv_done":
                 self._iv_finish(ev[1])
+            elif ev[0] == "restore_done":
+                self._finish_hash_restore(ev[1], ev[2], ev[3])
             elif ev[0] == "done":
                 self._finish_run(ev[1], ev[2], ev[3])
             elif ev[0] == "aborted":
@@ -16042,7 +16825,7 @@ class App:
             self._log('跳过 {} 个已禁用文件（DISABLED_*.ini）：{}'.format(len(disabled), names))
         if not plan:
             messagebox.showinfo('提示', '请先在顶部填入有效的文件夹或 .ini 路径。'
-                                        '（可用“选择路径”按钮或直接把文件拖入窗口）', parent=self.root)
+                                        '（可用“选择路径”按钮或直接把文件拖入窗口），如果识别不到请检查路径中是否含有特殊字符，比如空格或符号', parent=self.root)
             return
         self.running = True
         self.cancel_event = threading.Event()
@@ -16091,7 +16874,7 @@ class App:
                              bg=THEMES[self.theme]['STAT_OK'], fg='#101216')
             self._chip_mode = 'ok'
             self.file_label.config(
-                text='完成：{} 个已更新 · {} 个已是最新（备份 DISABLED_BACKUP_*）'.format(changed, nochange),
+                text='完成：{} 个已更新 · {} 个已是最新（想退回点“↩ 还原”）'.format(changed, nochange),
                 fg=THEMES[self.theme]['STAT_OK'])
             self._file_mode = 'ok'
         self._log(msg, 'accent')
@@ -16107,11 +16890,143 @@ class App:
         except Exception:
             pass
 
+    def _hash_restore_prerun_dialog(self):
+        """点“↩ 还原”先弹一次提醒：一次只放一个 mod，且只认手动路径。
+        每次点都弹（不做“不再提醒”）。返回 True = 继续"""
+        msg = ('还原一次只处理一个 mod 的文件夹\n\n'
+               '· 只还原“手动修复路径”里填的那一个，默认修复路径不参与\n'
+               '· 一次只填一个文件夹，别把整个 Mods 目录填进来\n'
+               '· 只退回 ini，不动缓冲区；用掉的那份备份会删掉\n'
+               '· 当前 ini 会先按备份规则另存一份，还原本身也能再还原\n\n'
+               '确定现在开始还原吗？')
+        return bool(self._dialog_choice('还原前先看一眼', msg,
+                                        [('开始还原', True), ('先不还原', False)], False))
+
+    def start_restore(self):
+        """版本Hash修复的还原入口：按 DISABLED_BACKUP_*.ini 把 ini 退回原样。
+
+        点一下先弹一次提醒（一次一个 mod）；路径只认“手动修复路径”那一栏。
+        找到什么、推荐哪份都交给弹窗问用户。
+        还原期间 btn_run 变成“■ 停止还原”，跟修复共用一套 running/cancel_event。
+        """
+        if getattr(self, '_updating', False):
+            messagebox.showinfo('提示', '正在检查/下载更新，请稍候再开始。', parent=self.root)
+            return
+        if self.running:
+            messagebox.showinfo('提示', '正在修复/还原中，等这一轮跑完再来。', parent=self.root)
+            return
+        # 优先提醒：一次一个 mod（每次点都弹，跟索引工具的开修前提醒一个路子）
+        if not self._hash_restore_prerun_dialog():
+            self._log('已取消：还原前的提醒没有确认，没有改动任何文件。', 'gray')
+            self._show_full_log()
+            return
+        self._save_paths()
+        self._show_full_log()
+        paths = self._manual_entry_paths()
+        if not paths:
+            messagebox.showinfo('提示', '请先在“手动修复路径”里填入要还原的那个 mod 文件夹，'
+                                        '一次一个（默认修复路径不参与还原）。\n\n'
+                                        '可用“选择路径”按钮，或直接把文件夹拖入窗口。',
+                                parent=self.root)
+            return
+        if len(paths) > 1:
+            messagebox.showinfo('提示', '还原一次只处理一个 mod，现在“手动修复路径”里填了 {} 个：'
+                                        '\n\n{}\n\n请只留一个再开始。'.format(
+                                            len(paths), '\n'.join('· ' + t for t in paths[:6])),
+                                parent=self.root)
+            return
+        item = Path(paths[0])
+        if not item.exists():
+            messagebox.showinfo('提示', '路径不存在：\n\n{}'.format(paths[0]), parent=self.root)
+            return
+        target = item.resolve() if item.is_dir() else item.resolve().parent
+        found = scan_hash_backups(target)
+        if not found:
+            messagebox.showinfo('提示', '这个文件夹里没有「版本Hash修复」留下的 .ini 备份'
+                                        '（DISABLED_BACKUP_*.ini），没什么可还原的。',
+                                parent=self.root)
+            self._log('没有找到可还原的 .ini 备份：{}'.format(target), 'warn')
+            return
+        self.running = True
+        self.cancel_event = threading.Event()
+        self.btn_run.config(text='■ 停止还原', bg=DANGER, fg='white',
+                            activebackground='#a52f23', activeforeground='white')
+        self._set_edit_enabled(False)
+        self.progress.configure(maximum=max(len(found), 1), value=0)
+        self.prog_label.config(text='0/{}'.format(len(found)))
+        self.chip.config(text='还原中', bg=ACCENT, fg='#191c22')
+        self._chip_mode = None
+        self.file_label.config(text='', fg=DIM)
+        self._file_mode = None
+        self._log('=' * 62, 'gray')
+        self._log('开始还原：{} 个 ini 有备份可退回（{}）'.format(len(found), target), 'accent')
+        self._log('=' * 62, 'gray')
+        threading.Thread(target=self._restore_worker, args=(target, found),
+                         daemon=True).start()
+
+    def _restore_worker(self, target, groups):
+        """后台线程：弹还原确认框（经 IvGuiAsker 排到主线程），按用户选的项写回。"""
+        global IV_ASKER
+        prev = IV_ASKER
+        IV_ASKER = IvGuiAsker(self)
+        ok = fail = 0
+        cancelled = False
+        try:
+            picks = iv_asker().pick_restore(target.name or str(target), groups)
+            if picks is None:
+                cancelled = True
+                self.q.put(('out', '已取消，没有改动任何文件。\n'))
+            elif not picks:
+                cancelled = True
+                self.q.put(('out', '全部跳过了，没有改动任何文件。\n'))
+            else:
+                skip = len(groups) - len(picks)
+                if skip:
+                    self.q.put(('out', '跳过 {} 个文件，只还原选中的 {} 个。\n'.format(
+                        skip, len(picks))))
+                ok, fail = apply_hash_restore(groups, picks)
+        except Exception as e:
+            self.q.put(('out', '发生错误: {}\n'.format(e)))
+            self.q.put(('out', traceback.format_exc()))
+        finally:
+            IV_ASKER = prev
+            self.q.put(('restore_done', ok, fail, cancelled))
+
+    def _finish_hash_restore(self, ok, fail, cancelled=False):
+        self.running = False
+        self.btn_run.config(text='▶ 开始修复', bg=ACCENT, fg='#191c22',
+                            activebackground='#ffcf00', state='normal')
+        self._set_edit_enabled(True)
+        self.progress.configure(maximum=100, value=0)
+        self.prog_label.config(text='')
+        if cancelled:
+            self.chip.config(text='已取消', bg=THEMES[self.theme]['STAT_WARN'], fg='#191c22')
+            self._chip_mode = 'warn'
+            self.file_label.config(text='已取消还原，没有改动任何文件。',
+                                   fg=THEMES[self.theme]['STAT_WARN'])
+            self._file_mode = 'warn'
+        elif fail:
+            self.chip.config(text='部分失败', bg=THEMES[self.theme]['STAT_ERR'], fg='white')
+            self._chip_mode = 'err'
+            self.file_label.config(
+                text='还原完成（有失败项）：成功 {} · 失败 {}（详见日志）'.format(ok, fail),
+                fg=THEMES[self.theme]['STAT_ERR'])
+            self._file_mode = 'err'
+        else:
+            self.chip.config(text='完成 ✔', bg=THEMES[self.theme]['STAT_OK'], fg='#101216')
+            self._chip_mode = 'ok'
+            self.file_label.config(
+                text='还原完成：{} 个 ini 已退回（用掉的备份已删除）'.format(ok),
+                fg=THEMES[self.theme]['STAT_OK'])
+            self._file_mode = 'ok'
+        self._log('-' * 62, 'gray')
+        self._show_full_log()
+
     def _set_edit_enabled(self, en):
         st = 'normal' if en else 'disabled'
         for b in (self.btn_def_pick, self.btn_def_clear, self.btn_man_pick,
                   self.btn_man_clear, self.iv_pick, self.iv_clear,
-                  self.iv_dump_pick, self.iv_dump_reload):
+                  self.iv_dump_pick, self.iv_dump_reload, self.btn_hash_restore):
             b.config(state=st)
         for b, _mode in getattr(self, 'iv_mode_btns', []):
             b.config(state=st)
@@ -16441,13 +17356,14 @@ def gui_main():
             root.iconbitmap(ico)
     except Exception:
         pass
-    paths = [a for a in sys.argv[1:] if a not in ('--cli', '-c', '--console')]
+    paths = [a for a in sys.argv[1:] if a not in CONSOLE_FLAGS]
     App(root, initial_paths=paths or None)
     root.mainloop()
 
 
 # MARK: 运行
 def _run_cli():
+    _ensure_console()             # 打包版没有控制台，先开出黑窗再说话
     _enable_ansi()
     gone = _cleanup_stale_old()   # 与 GUI 一致：启动时清理更新残留(.upd_apply.cmd/.upd_extract.ps1 等)
     if gone:
@@ -16457,9 +17373,16 @@ def _run_cli():
     code = _read_update_fail_marker()
     if code:
         print('警告：{}'.format(_update_fail_msg(code)))
+    solo = _is_standalone_console()   # 独立单文件版：发布包里只有它一个文件
+    if solo:
+        print(c('版本 Hash 修复（独立版）  ·  {}'.format(APP_VERSION), Style.CYAN))
+        print('（独立版不带更新功能：要新版请在发布页重新下载主压缩包）')
+        print()
     # 启动静默检查：无更新零输出；发现新版才提示（也可在拖放循环输入 update 手动更新）
-    direct = [a for a in sys.argv[1:] if a not in ('--cli', '-c', '--console')]
-    if not direct and _upd_configured():
+    # 独立版整条更新链都不走：它只跟主 zip 一起发，旁边没有 依赖包勿删\，
+    # 把主包整套铺下来只会把文件夹搞乱。手动 update 在 drag_drop_loop 里也拦掉了
+    direct = [a for a in sys.argv[1:] if a not in CONSOLE_FLAGS]
+    if not direct and not solo and _upd_configured():
         try:
             if cli_check_update():
                 return
@@ -16474,7 +17397,7 @@ def _run_cli():
 
 
 if __name__ == '__main__':
-    if any(a in ('--cli', '-c', '--console') for a in sys.argv[1:]):
+    if _console_mode_requested():
         _run_cli()
     else:
         try:
