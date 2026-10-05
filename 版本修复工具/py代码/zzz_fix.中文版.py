@@ -20,7 +20,7 @@ import urllib.parse
 import webbrowser
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.2F'
+APP_VERSION = 'v3.2G'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
@@ -43,6 +43,10 @@ from tkinter import ttk, filedialog, messagebox
 # ================= 同目录存在 txt 时程序优先读文件，打包后无 txt 用此内嵌版）
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
+
+版本3.2G
+--------
+1.修复：match_first_index和match_index_count的更新逻辑bug，修复了部分角色索引节更新异常导致模型错位丢失的问题。
 
 版本3.2F
 --------
@@ -1469,6 +1473,7 @@ class Ini():
         self._done_hashes = set()
         self._touched_hashes = set()   # 本次实际被修改内容的 hash
         self._hash_log = []           # 本文件 hash 级命令的语义说明行（log 命令收集）
+        self._check_notes = False     # 自检发现了不符项（即使没改动文件，也要如实说）
 
         # 只在ini保存后将修改过的缓冲区写入磁盘，
         # 因为ini可以被备份，而备份缓冲区并不合理。
@@ -1570,6 +1575,8 @@ class Ini():
                     print('\t保存: {}'.format(filepath))
 
             print(_Style.RESET_BG + _Style.GREEN + _Style.BRIGHT + '已对该ini文件进行更新修复' + _Style.RESET)
+        elif self._check_notes:
+            print(_Style.WHITE_BG + _Style.ORANGE + '没有对该ini文件进行更新修复,但发现不符项(见上方提示)' + _Style.RESET)
         else:
             print(_Style.WHITE_BG + _Style.RED + '没有对该ini文件进行更新修复,因为所有hash已经是最新的了' + _Style.RESET)
         print()
@@ -1894,8 +1901,75 @@ class create_new_section():
         )
 
 
+_SECTION_TITLE_RE = re.compile(r'^\[([^\]]+)\]')
+
+
+def section_title_of(section_text):
+    """节名，取不到时返回 '?'（日志用）"""
+    m = _SECTION_TITLE_RE.search(section_text)
+    return m.group(1) if m else '?'
+
+
+def indexed_segments(indices, counts=None):
+    """(起点, 计数) 分段表。
+
+    counts 可以少写，按【尾部对齐】补：段计数本来就是相邻起点之差，
+    从 indices 直接推得出来，只有最后一段 = 该 IB 总索引数 - 最后起点，推不出来。
+    没给计数的段 count 为 None（仍算在段内，但计数不做核对/改写）。
+
+    '-1' 是「没有源节、新建 ib = null 节」的占位，不是真边界：按位置剔掉，
+    其余部分照常参与推导（这样那种条目也能靠 src_counts 给出旧值）
+    """
+    if not indices:
+        return []
+
+    starts = [int(index) for index in indices if index != '-1']
+    if not starts:
+        return []
+
+    explicit = [str(count) for count in (counts or ())]
+    if explicit and len(explicit) == len(indices):
+        # 计数写全了：跟着 indices 一起剔掉占位那一格
+        explicit = [count for index, count in zip(indices, explicit) if index != '-1']
+
+    segments = [
+        [start, starts[i + 1] - start if i + 1 < len(starts) else None]
+        for i, start in enumerate(starts)
+    ]
+    # 显式给的计数从最后一段往前填（写全时等同按下标一一对应）
+    for offset, count in enumerate(reversed(explicit)):
+        i = len(segments) - 1 - offset
+        if i < 0:
+            break
+        segments[i][1] = int(count)
+    return [(start, count) for start, count in segments]
+
+
+def segment_of(segments, value):
+    """value 落在哪个分段，返回 (起点, 计数)；不在任何段内返回 None。
+    末段没有计数时按「一直到结尾」处理，计数为 None 由调用方决定要不要改"""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return None
+    for start, count in segments:
+        end = start + count if count is not None else None
+        if v >= start and (end is None or v < end):
+            return start, count
+    return None
+
+
 @dataclass(kw_only=True)
 class transfer_indexed_sections():
+    """把旧版索引节迁到新版分段上（改 match_first_index / match_index_count）。
+
+    indices 写全（分段边界只有 dump 里有）；counts 可以省：
+      段计数 = 相邻起点之差，工具自己推，只有【末段】推不出来
+      （= 该 IB 总索引数 - 末段起点），所以每边只写最后一段就够：
+        'src_counts': ['1014'], 'trg_counts': ['984']
+      末段两边一致、或末段已删（drop_indices）时，两边都能不写。
+    自检条目由 _register_index_checks 用这张表自动生成，不用另写。
+    """
     trg_indices: tuple[str] = None
     src_indices: tuple[str] = None
     trg_counts : tuple[str] = None   # 目标分段计数（object_index_counts），与 trg_indices 一一对应
@@ -1922,7 +1996,6 @@ class transfer_indexed_sections():
 
         # 推导节名前缀（与原实现一致；仅用于新建 ib = null 节的命名）
         title = None
-        TITLE = re.compile(r'^\[([^\]]+)\]')
         for m in section_matches:
             mt = re.match(r'^\[TextureOverride(.*?)\]', m.group(1), flags=re.IGNORECASE)
             if not mt: continue
@@ -1934,24 +2007,7 @@ class transfer_indexed_sections():
 
         # 目标分段区间（object_index_counts）：段数不同时按「包含」配对用
         # （源段起点落在哪个目标段区间内，就配到那个目标段；例如洛克茜头发 3 段 -> 2 段）
-        trg_segments = []
-        if self.trg_counts and self.trg_indices and len(self.trg_counts) == len(self.trg_indices):
-            for trg_index, trg_count in zip(self.trg_indices, self.trg_counts):
-                if trg_index == '-1':   # 新建的 ib = null 节没有计数
-                    trg_segments = []
-                    break
-                trg_segments.append((int(trg_index), int(trg_count)))
-
-        def target_segment_of(value):
-            """value 落在哪个目标段，返回 (起点, 计数)；不在任何段内返回 None"""
-            try:
-                v = int(value)
-            except (TypeError, ValueError):
-                return None
-            for start, count in trg_segments:
-                if start <= v < start + count:
-                    return start, count
-            return None
+        trg_segments = indexed_segments(self.trg_indices, self.trg_counts)
 
         # 配对：src -> trg；'-1' 表示没有源节，新建 ib = null 节；缺失的 src 跳过并记录
         # （ib = null 节用 'Null{索引}' 命名，避免与保留的原节重名）
@@ -1982,15 +2038,22 @@ class transfer_indexed_sections():
                 remap[src_index] = zip_remap[src_index]
             else:
                 # 位置对不上（新旧段数不同）时按包含关系找目标段
-                seg = target_segment_of(src_index)
+                seg = segment_of(trg_segments, src_index)
                 if seg:
                     remap[src_index] = str(seg[0])
 
-            # 计数映射：同一源段对应的目标段计数
-            if self.src_counts and i < len(self.src_counts):
-                seg = target_segment_of(src_index)
-                if seg:
-                    count_remap[self.src_counts[i]] = str(seg[1])
+        # 计数映射：源段的计数 -> 目标段的计数（src_counts 没写全时按起点之差推）
+        # 目标段一律以【索引映射的结果】为准：包含关系在边界后移时会配错段
+        # （例：源 57612 -> 目标 59094，57612 仍落在目标首段 [0,59094) 里）
+        trg_count_of = {str(start): count for start, count in trg_segments}
+        for src_start, src_count in indexed_segments(self.src_indices, self.src_counts):
+            if (src_count is None
+                    or str(src_start) in drop_set
+                    or str(src_start) not in actual_indices):
+                continue   # 末段计数推不出来、已删段/文件里没有的节都不参与映射
+            trg_count = trg_count_of.get(remap.get(str(src_start)))
+            if trg_count is not None:
+                count_remap[str(src_count)] = str(trg_count)
 
         # 原地改写 match_first_index / match_index_count：只动配对的节，其余一律不碰
         # （match_index_count 优先走 object_index_counts 的计数映射；没有该字段时退回索引映射，
@@ -2009,8 +2072,7 @@ class transfer_indexed_sections():
             # 该源段在新版分段里已不存在：整节注释掉（尾部空白原样保留）
             if idx and idx.group(1) in drop_set:
                 core = new_section.rstrip()
-                tmt = TITLE.search(core)
-                tname = tmt.group(1) if tmt else '?'
+                tname = section_title_of(core)
                 new_section = '\n'.join(
                     line if line.lstrip().startswith(';') else '; ' + line
                     for line in core.splitlines()
@@ -2041,8 +2103,7 @@ class transfer_indexed_sections():
                 )
 
             if new_section != m.group(0):
-                tmt = TITLE.search(m.group(0))
-                tname = tmt.group(1) if tmt else '?'
+                tname = section_title_of(m.group(0))
                 old_sec = m.group(0)
                 oi = re.search(r'match_first_index\s*=\s*([\d]+)', old_sec, flags=re.IGNORECASE)
                 ni = re.search(r'match_first_index\s*=\s*([\d]+)', new_section, flags=re.IGNORECASE)
@@ -2095,6 +2156,154 @@ class transfer_indexed_sections():
             signal_break   = False,
             queue_hashes   = None,
             queue_commands = tuple(queue_commands) if queue_commands else None
+        )
+
+
+@dataclass(kw_only=True)
+class check_indexed_sections():
+    """已是最新 hash 时的一致性自检（挂在【新 hash】条目下）。
+
+    旧版工具只改 match_first_index、不管 match_index_count；等文件的 hash 已经是最新时，
+    挂在旧 hash 下的迁移条目整条不会触发，遗留的错值就再也识别不到。
+    这里拿同一张分段表当参照，把该 hash 下的索引节分三类：
+      未迁移（索引还是 src）/ 已迁移（核对计数）/ 表外索引（只提示，不碰）
+    fix=True 时按表改写计数、注释掉已不存在的段；默认只提示。
+    """
+    src_indices : tuple[str] = None
+    src_counts  : tuple[str] = None   # 只写末段也行（其余按起点之差推）
+    trg_indices : tuple[str] = None
+    trg_counts  : tuple[str] = None   # 同上：只写最后一节的计数就够
+    drop_indices: tuple[str] = None
+    fix         : bool = False
+
+    def execute(self, default_args: DefaultArgs):
+        ini  = default_args.ini
+        hash = default_args.hash
+
+        section_matches = list(get_section_hash_pattern(hash).finditer(ini.content))
+        if not section_matches:
+            return ExecutionResult()
+
+        trg_segments = indexed_segments(self.trg_indices, self.trg_counts)
+        src_set      = set(self.src_indices or ())
+        # 旧版计数值（src_counts 没写全时按起点之差推），用来认定「这是遗留值」
+        src_count_set = set(str(count) for _, count in
+                            indexed_segments(self.src_indices, self.src_counts)
+                            if count is not None)
+        trg_set      = set(index for index in (self.trg_indices or ()) if index != '-1')
+        drop_set     = set(self.drop_indices or ())
+        counts_known = all(count is not None for _, count in trg_segments)
+        total_count  = sum(count for _, count in trg_segments if count is not None)
+
+        sections = []
+        for m in section_matches:
+            mi = re.search(r'\n\s*match_first_index\s*=\s*([\d]+)', m.group(0), flags=re.IGNORECASE)
+            if not mi:
+                continue
+            mc = re.search(r'\n\s*match_index_count\s*=\s*([\d]+)', m.group(0), flags=re.IGNORECASE)
+            sections.append((m, mi.group(1), mc.group(1) if mc else None))
+
+        if not sections:
+            return ExecutionResult()
+
+        notes      = []
+        content    = ini.content
+        changed    = 0
+        seen       = set()
+        unmigrated = False
+
+        # 倒序改：前面的匹配位置不会因为后面的改写而失效
+        # （提示反过来插到最前，日志就按文件自上而下的顺序读）
+        for m, idx, count in reversed(sections):
+            tname = section_title_of(m.group(0))
+            if idx in seen:
+                notes.insert(0, '! {}: 索引 {} 出现重复节'.format(tname, idx))
+            seen.add(idx)
+
+            if idx in drop_set:
+                if not self.fix:
+                    notes.insert(0, '! {}: 索引 {} 在新版分段里已不存在，建议注释该节'.format(tname, idx))
+                if self.fix:
+                    core = m.group(0).rstrip()
+                    commented = '\n'.join(
+                        line if line.lstrip().startswith(';') else '; ' + line
+                        for line in core.splitlines()
+                    ) + m.group(0)[len(core):]
+                    content = content[:m.start()] + commented + content[m.end():]
+                    changed += 1
+                    notes.insert(0, '+ {}: 索引 {} 在新版分段里已不存在，已注释该节'.format(tname, idx))
+                continue
+
+            if idx in src_set and idx not in trg_set:
+                unmigrated = True
+                notes.insert(0, '! {}: 索引 {} 仍是旧版分段，未迁移'.format(tname, idx))
+                continue
+
+            if idx not in trg_set:
+                notes.insert(0, '! {}: 索引 {} 不在新旧分段表内，跳过'.format(tname, idx))
+                continue
+
+            seg = segment_of(trg_segments, idx)
+            if count is None or not seg or seg[1] is None or count == str(seg[1]):
+                continue   # seg[1] 是 None = 末段计数推不出来，不核对
+            stale = count in src_count_set
+            if counts_known and count == str(total_count):
+                continue   # 一整段覆盖（计数 = 全部分段之和）是合法写法，不动
+            # 计数没写全时认不出「总数」，退一步：越过末段起点的也当整段覆盖
+            # （旧版遗留值例外 —— 那种是要报要改的）
+            if (not stale and trg_segments
+                    and int(idx) + int(count) > trg_segments[-1][0]):
+                continue
+            if self.fix and stale:
+                # 真改了就说改了（跟迁移的「更新为」同一款式），别写成建议
+                fixed = re.sub(
+                    r'(\n\s*match_index_count\s*=\s*)[\d]+',
+                    r'\g<1>' + str(seg[1]),
+                    m.group(0), count=1, flags=re.IGNORECASE
+                )
+                content = content[:m.start()] + fixed + content[m.end():]
+                changed += 1
+                notes.insert(0, '+ {}: 索引 {} 的 match_index_count = {} 更新为 {}（旧版遗留计数）'.format(
+                    tname, idx, count, seg[1]))
+            else:
+                notes.insert(0, '! {}: 索引 {} 的 match_index_count = {}，按分段表应为 {}{}'.format(
+                    tname, idx, count, seg[1],
+                    '（旧版遗留计数，未自动改写）' if stale else '（无法确认旧值，未自动改写）'))
+
+        # 所有节合起来盖住整个索引范围时不报缺节（整段覆盖是合法写法）
+        reach = 0
+        for start, count in sorted(
+                (int(idx), int(cnt)) for _, idx, cnt in sections if cnt is not None):
+            if start > reach:
+                break
+            reach = max(reach, start + count)
+        # 计数齐全时按总数判；只写了前几段时退一步：盖到末段起点就算盖全了
+        # （否则「整段覆盖」的合法写法会被误报缺节）
+        if counts_known:
+            covers_all = reach >= total_count > 0
+        elif trg_segments:
+            covers_all = reach >= trg_segments[-1][0]
+        else:
+            covers_all = False
+
+        # 迁移没走完时缺节是必然的，不报
+        if not unmigrated and not covers_all:
+            for idx in (self.trg_indices or ()):
+                if idx != '-1' and idx not in seen:
+                    notes.append('! 缺少索引 {} 的节（可能要补 ib = null 节）'.format(idx))
+
+
+        if changed:
+            ini.content = content
+        if notes:
+            ini._check_notes = True
+
+        return ExecutionResult(
+            touched        = bool(changed),
+            failed         = False,
+            signal_break   = False,
+            queue_hashes   = None,
+            queue_commands = tuple((log, (note,)) for note in notes) if notes else None
         )
 
 
@@ -5260,7 +5469,7 @@ hash_commands = {
         (update_hash, ('8b240678',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '42885'],
-            'trg_indices': ['0', '42927'],
+            'trg_indices': ['0', '42927'],    # 末段两边一致，counts 全不用写
         })
     ],
 
@@ -6194,7 +6403,7 @@ hash_commands = {
         (update_hash, ('69ad9d08',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '-1'],
-            'trg_indices': ['0', '5253'],
+            'trg_indices': ['0', '5253'],   # 末段两边一致，counts 全不用写
         })
     ],
 
@@ -8055,6 +8264,8 @@ hash_commands = {
         (transfer_indexed_sections, {
             'src_indices': ['0', '57612'],
             'trg_indices': ['0', '59094'],
+            'src_counts': ['1014'],   # counts 只写末段，其余按起点之差推
+            'trg_counts': ['984'],
         })],
     #Texture纹理
     # Face-脸部
@@ -8183,7 +8394,7 @@ hash_commands = {
         (update_hash, ('92cb56c9',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '64092'],
-            'trg_indices': ['0', '64626'],
+            'trg_indices': ['0', '64626'],   # 末段两边一致，counts 全不用写
         })],
 
     '96dc0a8e': [(log, ('3.1 -> 3.2: RemielleSkinBlack Leg-腿部 draw_vb Hash',)), (update_hash, ('ea50e1d1',))],
@@ -8195,7 +8406,7 @@ hash_commands = {
         (update_hash, ('24a512cb',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '15618'],
-            'trg_indices': ['0', '15546'],
+            'trg_indices': ['0', '15546'],   # 末段两边一致，counts 全不用写
         })],
     #Texture纹理
     # Body-身体
@@ -8285,7 +8496,7 @@ hash_commands = {
         (update_hash, ('2cd6516a',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '56376'],
-            'trg_indices': ['0', '56736'],
+            'trg_indices': ['0', '56736'],  # 末段两边一致，counts 全不用写
         })],
     #Texture纹理
     # Body-身体
@@ -8444,9 +8655,7 @@ hash_commands = {
         (update_hash, ('e40b00b2',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '7350', '9216'],
-            'trg_indices': ['0', '6996', '9216'],
-            'src_counts': ['7350', '1866', '1092'],
-            'trg_counts': ['6996', '2220', '1092'],
+            'trg_indices': ['0', '6996', '9216'],   # 末段两边一致，counts 全不用写
         })],
     'e8bed423': [(log, ('3.21: Roxy Face-脸 texcoord_vb Hash',)), (update_hash, ('c90eb75c',))],
 
@@ -8457,8 +8666,8 @@ hash_commands = {
         (transfer_indexed_sections, {
             'src_indices': ['0', '12435', '14712'],
             'trg_indices': ['0', '11700'],
-            'src_counts': ['12435', '2277', '192'],
-            'trg_counts': ['11700', '3204'],
+            'src_counts': ['192'],   # 末段（已删段）；前两段按起点之差推
+            'trg_counts': ['3204'],
             'drop_indices': ['14712'],
         })],
     '1fdb833a': [(log, ('3.21: Roxy Hair-头发 position_vb Hash',)), (update_hash, ('8d17b17d',))],
@@ -8777,7 +8986,7 @@ hash_commands = {
         (update_hash, ('38daef11',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '42759'],
-            'trg_indices': ['0', '42963'],
+            'trg_indices': ['0', '42963'],   # 末段两边一致，counts 全不用写
         })],
     '8c0622d7': [(log, ('3.11: Sigrid Body-身体 blend_vb Hash',)), (update_hash, ('018ea72c',))],
     '01b35c45': [(log, ('3.11: Sigrid Body-身体 draw_vb Hash',)), (update_hash, ('d0bf0e87',))],
@@ -8902,7 +9111,7 @@ hash_commands = {
         (update_hash, ('e30ca87f',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '690', '8442'],
-            'trg_indices': ['0', '984', '8442'],
+            'trg_indices': ['0', '984', '8442'],   # 末段两边一致，counts 全不用写
         })],
     #不再提供对脸部vb的修复，不建议对脸部模型进行修改，可能会导致脸部贴图错位
     #Face 6a492df0取消更新，因为与青衣冲突
@@ -9403,7 +9612,7 @@ hash_commands = {
         (update_hash, ('2414f4b9',)),
         (transfer_indexed_sections, {
             'src_indices': ['0', '7182', '9888'],
-            'trg_indices': ['0', '7398', '9888'],
+            'trg_indices': ['0', '7398', '9888'],   # 末段两边一致，counts 全不用写
         })],
     '98ecf569': [(log, ('3.0 -> 3.1: Velina Face-脸部 blend_vb Hash',)), (update_hash, ('76fe8eed',))],
     '19ead1b7': [(log, ('3.0 -> 3.1: Velina Face-脸部 draw_vb Hash',)), (update_hash, ('bfa3b361',))],
@@ -11022,6 +11231,38 @@ hash_commands = {
         (multiply_section_if_missing,   ('58d5c840', 'ZhuYuan.ExtrasB.MaterialMap.2048')),
     ],
 }
+
+
+def _register_index_checks(commands_table):
+    """给每个迁移条目自动补一条「新 hash 下的索引自检」。
+
+    迁移条目形如 update_hash(新) + transfer_indexed_sections(分段表)。
+    被旧版工具处理过的文件 hash 已经是最新，这条迁移整条不会触发，
+    遗留的错计数/已删段就再也识别不到；自检挂在新 hash 下补这个缺口。
+
+    以后新增索引更新只要写迁移条目本身（一张分段表），这里自动接管，
+    不用再去新 hash 条目手动补第二处。已有自检条目的新 hash 不重复挂。
+    """
+    for commands in list(commands_table.values()):
+        index_map = next(
+            (command[1] for command in commands
+             if command[0] is transfer_indexed_sections and isinstance(command[1], dict)),
+            None)
+        if not index_map:
+            continue
+        for command in commands:
+            if command[0] is not update_hash:
+                continue
+            args = command[1]
+            new_hash = args['new_hash'] if isinstance(args, dict) else (
+                args[0] if isinstance(args, (tuple, list)) else args)
+            target = commands_table.setdefault(new_hash, [])
+            if any(c[0] is check_indexed_sections for c in target):
+                continue
+            target.append((check_indexed_sections, {**index_map, 'fix': True}))
+
+
+_register_index_checks(hash_commands)
 
 
 # MARK: Regex
@@ -16511,6 +16752,8 @@ class App:
             return 'err'
         if '已创建备份' in line or '已备份缓冲区' in line or '已保存默认' in line:
             return 'warn'
+        if line.lstrip().startswith('!') or '发现不符项' in line:
+            return 'warn'   # 索引/计数自检的不符项提示（log 行带制表符缩进）
         if '更新修复' in line and '没有' not in line:
             return 'ok'
         if '没有对该' in line or '已是最新' in line:
@@ -16681,8 +16924,9 @@ class App:
                 order = []
                 for h, t in hlog:
                     ts = t.strip()
-                    if not ts.startswith('+'):
-                        continue   # 跳过/版本标题等非实际变更行不显示，只留真实更新
+                    if not ts.startswith(('+', '-')):
+                        continue   # 跳过/版本标题等非实际变更行不显示，只留真实变更（改建与注释）
+
                     act = ts[1:].strip()
                     if act not in acts:
                         acts[act] = []
