@@ -1,4 +1,4 @@
-# zzz_fix manifest v3.2G
+# zzz_fix manifest v3.2H
 dump/哲通用-脸/1fdaf388-9258-0-Blend.buf
 dump/哲通用-脸/1fdaf388-9258-0-Position.buf
 dump/哲通用-脸/1fdaf388-9258-0-Texcoord.buf

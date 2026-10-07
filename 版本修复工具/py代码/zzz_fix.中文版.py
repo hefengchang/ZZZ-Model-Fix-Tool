@@ -6,6 +6,7 @@ import re
 import time
 import struct
 import argparse
+import hashlib
 import shlex
 import traceback
 import sys
@@ -18,15 +19,17 @@ import subprocess
 import urllib.request
 import urllib.parse
 import webbrowser
+import zipfile
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.2G'
+APP_VERSION = 'v3.2H'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
 # 留空则不检查更新；发布时填好再打 tag（版本号，如 3.1D）并上传 exe/py 资产即可。
 # 也可在 zzz_fix_设置.json 里写 update_gitee_repo / update_github_repo 覆盖（便于测试）。
 # 启动自动检查开关在设置文件 update_auto_start（默认 true）。
+# 启动时检查程序目录里有没有不该有的文件（有就提示并停止启动）开关在 foreign_check（默认 true，作者调试可关）。
 GITEE_REPO = 'hefengchang/ZZZ-Model-Fix-Tool'
 GITHUB_REPO = 'hefengchang/ZZZ-Model-Fix-Tool'
 # 界面链接按钮指向的网址（mod指南 / 更多修复工具）
@@ -43,6 +46,10 @@ from tkinter import ttk, filedialog, messagebox
 # ================= 同目录存在 txt 时程序优先读文件，打包后无 txt 用此内嵌版）
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
+
+版本3.2H
+--------
+1.修复：自动更新逻辑，添加完整性检查，不再自动删除多余文件。修复工具目录将不再允许添加额外文件和删除自身文件。
 
 版本3.2G
 --------
@@ -11435,6 +11442,16 @@ def _version_greater(new_ver, cur_ver):
     return _ver_key(new_ver) > _ver_key(cur_ver)
 
 
+def _releases_page_url():
+    """发布页地址（首选源），给用户自己去下压缩包用；没配仓库就回落到项目主页"""
+    repos = _upd_repos()
+    if repos:
+        host, repo = repos[0]
+        base = 'https://gitee.com/{}' if host == 'gitee' else 'https://github.com/{}'
+        return '{}/releases'.format(base.format(repo))
+    return URL_MOD_GUIDE
+
+
 def _release_url(host, repo, tag, fname):
     """按 Release 下载链接规则拼直链（两者同构）"""
     q = lambda s: urllib.parse.quote(s, safe='')
@@ -11442,26 +11459,28 @@ def _release_url(host, repo, tag, fname):
     return '{}/releases/download/{}/{}'.format(base.format(q(repo)), q(tag), q(fname))
 
 
-def _http_open(url, timeout=8.0):
-    """urllib 封装：统一 UA；证书校验失败时降级为不校验重试一次（无 ca 包的旧环境）"""
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'ZZZ-Fix-{}/1.0 (Windows)'.format(APP_VERSION),
-        'Accept': 'application/json, */*'})
+def _http_open(url, timeout=8.0, insecure_fallback=True):
+    """urllib 封装：统一 UA。
+    insecure_fallback=True 时，证书校验失败降级为不校验重试一次（无 ca 包的旧环境）。
+    【下载程序本体一律用 False】：证书校验失败会被中间人利用 —— 他先让校验失败，
+    再喂一个改过的包，程序就会覆盖自身。查版本这种只读接口才允许降级。"""
+
+    def _req():
+        return urllib.request.Request(url, headers={
+            'User-Agent': 'ZZZ-Fix-{}/1.0 (Windows)'.format(APP_VERSION),
+            'Accept': 'application/json, */*'})
+
     try:
-        return urllib.request.urlopen(req, timeout=timeout)
+        return urllib.request.urlopen(_req(), timeout=timeout)
     except urllib.error.URLError as e:
-        if isinstance(getattr(e, 'reason', None), ssl.SSLError):
-            req2 = urllib.request.Request(url, headers={
-                'User-Agent': 'ZZZ-Fix-{}/1.0 (Windows)'.format(APP_VERSION),
-                'Accept': 'application/json, */*'})
-            return urllib.request.urlopen(req2, timeout=timeout,
+        if insecure_fallback and isinstance(getattr(e, 'reason', None), ssl.SSLError):
+            return urllib.request.urlopen(_req(), timeout=timeout,
                                           context=ssl._create_unverified_context())
         raise
     except ssl.SSLError:
-        req2 = urllib.request.Request(url, headers={
-            'User-Agent': 'ZZZ-Fix-{}/1.0 (Windows)'.format(APP_VERSION),
-            'Accept': 'application/json, */*'})
-        return urllib.request.urlopen(req2, timeout=timeout,
+        if not insecure_fallback:
+            raise
+        return urllib.request.urlopen(_req(), timeout=timeout,
                                       context=ssl._create_unverified_context())
 
 
@@ -11471,85 +11490,151 @@ def _http_json(url):
     return json.loads(data.decode('utf-8-sig', 'replace'))
 
 
+def _api_urls(host, repo):
+    """一个源的几个接口：(latest 单条, 列表)。
+    latest 是「最新 Release」直查 —— 不受分页影响，列表负责兜底
+    （最新那版没传资产时要退到次新版本，latest 给不了）"""
+    if host == 'gitee':
+        base = 'https://gitee.com/api/v5/repos/{}'.format(
+            urllib.parse.quote(repo, safe='/'))
+        # Gitee 列表按时间正序、per_page 上限 100：给足才不漏最新版
+        return base + '/releases/latest', base + '/releases?per_page=100'
+    base = 'https://api.github.com/repos/{}'.format(
+        urllib.parse.quote(repo, safe='/'))
+    # GitHub 列表按时间倒序：最新几条就够
+    return base + '/releases/latest', base + '/releases?per_page=20'
+
+
+def _take_release(by_tag, order, it, host, repo, ext):
+    """把一个 Release 的信息并进 by_tag（同一个 tag 在两个源出现过就合并）"""
+    if not isinstance(it, dict):
+        return
+    tag = str(it.get('tag_name') or it.get('name') or '').strip()
+    if not tag or it.get('draft'):
+        return
+    entry = by_tag.get(tag)
+    if entry is None:
+        entry = {'tag': tag, 'assets': [], 'alts': [], 'cand': [],
+                 'pre': bool(it.get('prerelease')), 'all': [], 'body': ''}
+        by_tag[tag] = entry
+        order.append(tag)
+    elif bool(it.get('prerelease')):
+        entry['pre'] = True      # 有一边算预发布就按预发布处理
+    body = str(it.get('body') or '').strip()
+    if body and not entry['body']:
+        entry['body'] = body     # Release 正文 = 更新内容（发布脚本从 CHANGELOG_TEXT 里截的）
+    all_names = entry['all']
+    for a in it.get('assets') or []:
+        if not isinstance(a, dict):
+            continue
+        nm = str(a.get('name') or '')
+        if not nm:
+            nm = str(a.get('browser_download_url') or '').rsplit('/', 1)[-1]
+        if nm not in all_names:
+            all_names.append(nm)
+        if not nm.lower().endswith(ext):
+            continue
+        if nm in (tag + '.zip', tag + '.tar.gz'):
+            continue   # Gitee 自动附带的源码包，不是程序包
+        url = a.get('browser_download_url') or _release_url(host, repo, tag, nm)
+        cand = (nm, url, host)
+        if cand not in entry['cand']:
+            entry['cand'].append(cand)
+
+
 def _list_releases():
-    """按 Gitee→GitHub 顺序取 Release 列表；返回候选 [(tag, 资产[(名,直链)])...]，
-    全部源都失败则抛错。仅从第一个成功返回的源取（Gitee 失败才轮到 GitHub）"""
-    items = []
+    """查 Release：【每个源都查两条接口】—— 先直查「最新 Release」，再拉列表兜底。
+    两个源都查是必须的：Gitee 漏发 / 挂了 / 最新那版没传资产时要用 GitHub 顶上。
+
+    返回 (releases, errs)：
+        releases = [{'tag', 'assets': [(名, 直链, host)], 'alts': [(名, 直链, host)],
+                     'pre': 是否两边都算预发布, 'all': [该版本所有文件名]}]
+        同一个 tag 只出现一次：先查到的源（Gitee）当主，另一个源的资产进 alts，
+        下载失败时可以换着试；主源没资产时另一个源直接当主。
+    全部源都失败则抛错（errs 是每个源的原因）"""
+    ext = '.zip' if getattr(sys, 'frozen', False) else '.py'
+    by_tag = {}
+    order = []
     errs = []
     for host, repo in _upd_repos():
-        if host == 'gitee':
-            api = 'https://gitee.com/api/v5/repos/{}/releases?per_page=8'.format(
-                urllib.parse.quote(repo, safe='/'))
-        else:
-            api = 'https://api.github.com/repos/{}/releases?per_page=8'.format(
-                urllib.parse.quote(repo, safe='/'))
+        latest_api, list_api = _api_urls(host, repo)
+        got_latest = False
         try:
-            data = _http_json(api)
+            _take_release(by_tag, order, _http_json(latest_api), host, repo, ext)
+            got_latest = True
         except Exception as e:
-            errs.append('{}: {}'.format(host, e))
+            errs.append('{} latest: {}'.format(host, e))
+        try:
+            data = _http_json(list_api)
+        except Exception as e:
+            errs.append('{} 列表: {}'.format(host, e))
             continue
         if not isinstance(data, list) or not data:
-            errs.append('{}: 返回内容为空或异常'.format(host))
+            if not got_latest:
+                errs.append('{}: 返回内容为空或异常'.format(host))
             continue
-        ext = '.zip' if getattr(sys, 'frozen', False) else '.py'
         for it in data:
-            if not isinstance(it, dict):
-                continue
-            tag = str(it.get('tag_name') or it.get('name') or '').strip()
-            if not tag:
-                continue
-            if it.get('draft'):
-                continue
-            assets = []
-            all_names = []
-            for a in it.get('assets') or []:
-                if not isinstance(a, dict):
-                    continue
-                nm = str(a.get('name') or '')
-                if not nm:
-                    nm = str(a.get('browser_download_url') or '').rsplit('/', 1)[-1]
-                all_names.append(nm)
-                if not nm.lower().endswith(ext):
-                    continue
-                url = a.get('browser_download_url') or _release_url(host, repo, tag, nm)
-                assets.append((nm, url))
-            # 预发布排最后：有正式版就只挑正式版
-            items.append((tag, assets, bool(it.get('prerelease')), all_names))
-        break
-    if not items:
+            _take_release(by_tag, order, it, host, repo, ext)
+    if not order:
         raise RuntimeError('；'.join(errs) or '更新源均无数据')
-    return items
+    # 候选排序：zzz_fix 开头的正经程序包优先，其余（改名过的老包）兜底；
+    # 第一个当主用，其余留着下载失败时换（同名不同源 = Gitee 挂了换 GitHub）
+    for tag in order:
+        entry = by_tag[tag]
+        cand = entry.pop('cand')
+        pref = [c for c in cand if c[0].lower().startswith('zzz_fix')]
+        rest = [c for c in cand if not c[0].lower().startswith('zzz_fix')]
+        ranked = pref + rest
+        entry['assets'] = ranked[:1]
+        entry['alts'] = ranked[1:]
+    return [by_tag[t] for t in order], errs
 
 
 def check_update_now():
     """查是否有更新。返回 (info, note)：
-    info 非空 = 发现新版，含 new/old/host/repo/fname/url；
+    info 非空 = 发现新版，含 new/old/fname/url/urls（urls 是同一个包的各源直链，
+    第一个是首选源，下载失败按顺序换，Gitee 挂了就用 GitHub）；
     info 为空且 note 非空 = 有说明（如仓库未配置资产）；均空 = 已是最新。异常直接抛。"""
     if not _upd_configured():
         return None, '尚未配置更新仓库：请填写代码顶部 GITEE_REPO / GITHUB_REPO，或设置文件 update_gitee_repo / update_github_repo'
-    releases = _list_releases()
-    # 先看正式版，再看预发布；同版本号靠前（Gitee）的优先
-    stable = [r for r in releases if not r[2]]
+    releases, _errs = _list_releases()
+    # 先看正式版，再看预发布
+    stable = [r for r in releases if not r['pre']]
     pool = stable or releases
     cand = None
-    for tag, assets, _pre, _all in sorted(pool, key=lambda r: _ver_key(r[0]), reverse=True):
-        if assets:
-            cand = (tag, assets)
+    for rel in sorted(pool, key=lambda r: _ver_key(r['tag']), reverse=True):
+        if rel['assets']:
+            cand = rel
             break
     if cand is None:
-        newest = max(pool, key=lambda r: _ver_key(r[0]))
+        newest = max(pool, key=lambda r: _ver_key(r['tag']))
         ext = '.zip' if getattr(sys, 'frozen', False) else '.py'
-        names = (newest[3] or [])[:10]
+        names = (newest['all'] or [])[:10]
         return None, ('最新版本 {} 的 Release 里没有本模式可用的资产（{}）。\n'
-                      '该版本现有附件：{}').format(newest[0], ext,
+                      '该版本现有附件：{}').format(newest['tag'], ext,
                                                  '、'.join(names) or '无')
-    tag, assets = cand
-    tag, assets = cand
+    tag = cand['tag']
     if not _version_greater(tag, APP_VERSION):
         return None, ''
-    fname, url = assets[0]
+    fname, url, host = cand['assets'][0]
+    urls = [(host, url)] + [(h, u) for (n, u, h) in cand['alts'] if n == fname]
     return ({'new': tag, 'old': APP_VERSION, 'fname': fname, 'url': url,
-             'kind': 'zip' if getattr(sys, 'frozen', False) else 'py'}, None)
+             'urls': urls, 'body': cand.get('body') or '',
+             'kind': 'zip' if getattr(sys, 'frozen', False) else 'py'},
+            None)
+
+
+def _upd_body_lines(info, limit=40):
+    """新版更新内容（Release 正文）拆成行，便于打印 / 入日志；没有就返回空列表"""
+    body = (info or {}).get('body') or ''
+    lines = [ln.rstrip() for ln in body.splitlines()]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if len(lines) > limit:
+        lines = lines[:limit] + ['…（更多见发布页）']
+    return lines
 
 
 def _program_target():
@@ -11575,9 +11660,34 @@ def _save_downloaded(tmp_path, preferred):
     raise RuntimeError('下载文件被占用，无法写入最终文件名')
 
 
+def _sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        while True:
+            chunk = f.read(1 << 20)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _fetch_expected_sha(url):
+    """取发布方随包放的 .sha256（同目录同名 + .sha256）。取不到 / 格式不对返回 None。
+    内容是 64 位十六进制即可，允许「HASH」或「HASH  文件名」两种写法"""
+    try:
+        with _http_open(url + '.sha256', timeout=10.0, insecure_fallback=False) as r:
+            text = r.read(4096).decode('utf-8-sig', 'replace')
+    except Exception:
+        return None
+    m = re.search(r'\b([0-9a-fA-F]{64})\b', text)
+    return m.group(1).lower() if m else None
+
+
 def _download_file(url, tmp_path, pct_cb=None, cancel_cb=None):
-    """流式下载到 tmp_path。取消回调返回 True 时中止；内容异常(HTML/过小)视为失败"""
-    with _http_open(url, timeout=25.0) as r:
+    """流式下载到 tmp_path。取消回调返回 True 时中止；内容异常(HTML/过小)视为失败。
+    发布方放了 .sha256 就校验（对不上直接弃包），没放就跳过并在返回的提示里说明。
+    下载程序本体不允许「证书校验失败就降级」，见 _http_open。返回一句说明文字"""
+    with _http_open(url, timeout=25.0, insecure_fallback=False) as r:
         total = None
         cl = r.headers.get('Content-Length')
         if cl and cl.isdigit():
@@ -11601,8 +11711,97 @@ def _download_file(url, tmp_path, pct_cb=None, cancel_cb=None):
         head = f.read(256).lower()
     if head.startswith(b'<!doctype') or head.startswith(b'<html') or b'not found' in head:
         raise RuntimeError('下载到的不是程序文件（可能地址错误或被网络拦截）')
+    if total and size != total:
+        raise RuntimeError('下载不完整（{}/{} 字节），请重试'.format(size, total))
+    note = ''
+    want = _fetch_expected_sha(url)
+    if want:
+        got = _sha256_file(tmp_path)
+        if got != want:
+            try:
+                os.remove(tmp_path)     # 删的是刚下的临时文件
+            except OSError:
+                pass
+            raise RuntimeError('下载校验没过（SHA256 对不上，文件可能损坏或被改动），已丢弃。'
+                               '请重试或手动去发布页下载')
+        note = '（已按发布方 SHA256 校验）'
+    else:
+        note = '（发布方没提供 .sha256，未校验内容完整性）'
     if pct_cb is not None:
         pct_cb(100)
+    return note
+
+
+def _download_with_fallback(info, tmp_path, pct_cb=None):
+    """按 info['urls'] 顺序下载（Gitee 失败换 GitHub），全失败抛最后一个错。
+    返回 (用到的 host 或 None, 提示文字)"""
+    urls = info.get('urls') or [(None, info.get('url', ''))]
+    last = None
+    for host, url in urls:
+        if not url:
+            continue
+        try:
+            note = _download_file(url, tmp_path, pct_cb=pct_cb)
+            return host, note
+        except Exception as e:      # 换下一个源再试
+            last = e
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except OSError:
+                pass
+    raise last if last else RuntimeError('没有可用的下载地址')
+
+
+def _verify_package(path, info):
+    """装之前先验包：包里的版本要对得上 Release 标的版本，清单上的文件要都在包里。
+    不对就抛错 —— 这种包装完新版一启动就会被自己的完整性检查拦下，白装。
+    返回一句说明（包里没有清单时说明未做这项校验）"""
+    tag = re.sub(r'^[vV]', '', str(info.get('new') or '')).lower()
+    if info.get('kind') != 'zip':
+        try:
+            with open(path, 'rb') as f:
+                head = f.read(1 << 20).decode('utf-8', 'replace')
+        except OSError as e:
+            raise RuntimeError('读不了下载的文件：{}'.format(e))
+        m = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", head)
+        if not m:
+            raise RuntimeError('下载到的文件里没有 APP_VERSION，可能不是程序本体')
+        ver = m.group(1)
+        if tag and re.sub(r'^[vV]', '', ver).lower() != tag:
+            raise RuntimeError('下载到的是 {} 版，Release 标的是 {}，对不上，不安装'
+                               .format(ver, info.get('new')))
+        return '（已核对版本 {}）'.format(ver)
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = set(n.rstrip('/') for n in z.namelist())
+            if FILE_MANIFEST not in names:
+                return '（包里没有 {}，跳过包内校验）'.format(FILE_MANIFEST)
+            raw = z.read(FILE_MANIFEST).decode('utf-8', 'replace')
+    except Exception as e:
+        raise RuntimeError('压缩包打不开（下载不完整或不是 zip）：{}'.format(e))
+    ver = None
+    rels = []
+    for ln in raw.splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        if ln.startswith('#'):
+            parts = ln.split()
+            if len(parts) >= 2:
+                ver = parts[-1]
+            continue
+        rels.append(ln.replace('\\', '/').lstrip('/'))
+    if tag and ver and re.sub(r'^[vV]', '', ver).lower() != tag:
+        raise RuntimeError('压缩包里的清单是 {} 版，Release 标的是 {}，对不上，不安装'
+                           .format(ver, info.get('new')))
+    missing = [r for r in rels if r not in names]
+    if missing:
+        raise RuntimeError('压缩包不完整：少了 {} 个清单上的文件（如 {}）'
+                           .format(len(missing), '、'.join(missing[:3])))
+    if not ver and not rels:
+        return '（包内清单是空的，跳过包内校验）'
+    return '（已核对包内清单 {}：{} 个文件齐全）'.format(ver or '?', len(rels))
 
 
 def _apply_install(tmp_path):
@@ -11711,9 +11910,13 @@ def _cleanup_stale_old():
                     os.remove(os.path.join(d, fn))
                 except OSError:
                     pass
+            elif fn == FILE_MANIFEST_PREV:   # 旧版本留下的对比清单，已不用
+                try:
+                    os.remove(os.path.join(d, fn))
+                except OSError:
+                    pass
     except OSError:
         pass
-    return _cleanup_extra_files()   # 手动解压覆盖留下的旧版本文件
 
 
 def _manifest_path(name):
@@ -11747,84 +11950,106 @@ def _read_manifest(path):
     return ver, paths
 
 
-def _cleanup_extra_files():
-    """清掉旧版本残留文件。Windows 解压/复制只覆盖同名文件，新版删掉的文件会一直留着
-    （手动解压覆盖更新尤其明显）。两轮：
-      ① 上一次清单 − 本次清单：删「上个版本发过、这版不发了」的路径（含顶层文件、降级场景）
-      ② 本次清单里出现过的顶层目录（dump、依赖包勿删 …）整棵树扫一遍，树里不在清单上的
-         文件删掉 —— 老版本删掉的文件不在任何清单里，只有这条能兜住。
-    只碰这两类，用户自加的文件（顶层）、设置、压缩包、更新脚本一律不动。
-    清单版本和当前程序对不上（半解压 / 混装）就什么都不做。返回删掉的相对路径列表"""
+def _runtime_ok_names():
+    """程序目录里「本来就不在清单上、也不算异常」的运行时名字：
+    设置文件、下载的更新包、更新脚本、临时文件、清单自身"""
+    return {FILE_MANIFEST, FILE_MANIFEST_PREV, 'zzz_fix_设置.json',
+            UPD_CMD_NAME, UPD_PS1_NAME, UPD_FAIL_MARK, UPD_TMP_DIR}
+
+
+def _scan_program_dir():
+    """每次启动检查程序目录：清单上的文件全在吗（少了）+ 有没有清单外的东西（多了）。
+    【只检测，绝不删】：更新只做覆盖，目录里可能有用户自己的文件，程序无从分辨，
+    所以一律留着，只提示、只拦启动。返回 (extra_files, extra_dirs, missing)；
+    判断不了（独立版 / 源码模式）→ (None, None, None)。
+    清单本身也算被检查的文件：主程序（onedir）旁边没有清单、或清单版本和程序对不上，
+    一样按「不完整」拦下来 —— 不然删掉清单就能绕过检查"""
+    root = os.path.dirname(_program_target())
+    onedir = os.path.isdir(os.path.join(root, DEP_DIR_NAME))
+    if not onedir:
+        return None, None, None    # 独立版单文件 / 源码模式：本来就不带清单，不判断
     cur_ver, cur = _read_manifest(_manifest_path(FILE_MANIFEST))
     if not cur or cur_ver != APP_VERSION:
-        return []
-    root = os.path.dirname(_program_target())
-    gone = []
-    prev_ver, prev = _read_manifest(_manifest_path(FILE_MANIFEST_PREV))
-    if prev and prev_ver != cur_ver:
-        gone += _remove_rel_paths(root, prev - cur)
-    # 清单里的顶层目录：目录树里其余文件都算旧版本残留
-    roots = set()
-    for rel in cur:
-        if '/' in rel:
-            roots.add(rel.split('/', 1)[0])
-    have = set()
-    for top in roots:
-        tp = os.path.join(root, top)
-        for dirpath, _dirs, files in os.walk(tp):
-            for fn in files:
-                have.add(os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, '/'))
-    gone += _remove_rel_paths(root, have - cur)
-    if gone:
-        _prune_empty_dirs(root, gone)
-    new_prev = sorted(cur)
-    if prev_ver != cur_ver or sorted(prev) != new_prev:
-        try:   # 记下本次清单，供下次对比；内容没变就不重写
-            with open(_manifest_path(FILE_MANIFEST_PREV), 'w', encoding='utf-8') as f:
-                f.write('# zzz_fix manifest {}\n'.format(cur_ver))
-                f.write('\n'.join(new_prev) + '\n')
-        except OSError:
-            pass
-    return gone
+        return [], [], [FILE_MANIFEST]
+    missing = sorted(rel for rel in cur
+                     if not os.path.exists(os.path.join(root, *rel.split('/'))))
+    ok = _runtime_ok_names()
+    files, dirs = [], []
+    try:
+        entries = list(os.scandir(root))
+    except OSError:
+        return None, None, None
+    for entry in entries:
+        if entry.name in ok or entry.name.lower().endswith('.zip') \
+                or entry.name.lower().endswith('.part'):
+            continue   # 设置、更新包、更新脚本、下载临时文件：正常存在
+        if entry.is_dir(follow_symlinks=False):
+            # 顶层文件夹：清单里没有以它开头的条目 = 不是本程序的
+            if not any(rel.split('/', 1)[0] == entry.name for rel in cur):
+                dirs.append(entry.name)
+            else:
+                for dirpath, _dirnames, filenames in os.walk(entry.path):
+                    for fn in filenames:
+                        rel = os.path.relpath(os.path.join(dirpath, fn), root).replace(os.sep, '/')
+                        if rel not in cur:
+                            files.append(rel)
+        else:
+            if entry.name not in cur:
+                files.append(entry.name)
+    return sorted(files), sorted(dirs), missing
 
 
-def _remove_rel_paths(root, rels):
-    """按相对路径删文件（不碰目录），返回真删掉的；越界路径跳过"""
-    gone = []
-    for rel in sorted(rels):
-        if rel.startswith('..') or os.path.isabs(rel):
-            continue
-        p = os.path.join(root, *rel.split('/'))
-        try:
-            if os.path.isfile(p):
-                os.remove(p)
-                gone.append(rel)
-        except OSError:
-            pass
-    return gone
+def _brief(items, limit=6):
+    """列表写成「前几个 + 还有 N 个」的多行文本"""
+    lines = ['    {}'.format(x) for x in items[:limit]]
+    if len(items) > limit:
+        lines.append('    …还有 {} 个'.format(len(items) - limit))
+    return lines
 
 
-def _prune_empty_dirs(root, gone):
-    """删完文件后把空掉的目录一起收掉（旧角色文件夹等），到程序目录为止"""
-    for rel in gone:
-        p = os.path.dirname(os.path.join(root, *rel.split('/')))
-        while p and os.path.normcase(p) != os.path.normcase(root):
-            try:
-                if os.listdir(p):
-                    break
-                os.rmdir(p)
-            except OSError:
-                break
-            p = os.path.dirname(p)
+def describe_dir_check(files, dirs, missing):
+    """把检查结果写成提示文案；一切正常返回 ''"""
+    if not files and not dirs and not missing:
+        return ''
+    lines = []
+    if FILE_MANIFEST in missing:
+        lines.append('文件清单 {} 缺失，或和当前程序版本对不上。'.format(FILE_MANIFEST))
+    rest = [m for m in missing if m != FILE_MANIFEST]
+    if rest:
+        lines.append('缺失的程序文件 {} 个：'.format(len(rest)))
+        lines.extend(_brief(rest))
+    if files:
+        lines.append('不属于本程序的文件 {} 个：'.format(len(files)))
+        lines.extend(_brief(files))
+    if dirs:
+        lines.append('不属于本程序的文件夹 {} 个：'.format(len(dirs)))
+        lines.extend(_brief(dirs))
+    return '\n'.join(lines)
+
+
+def dir_check_advice(files, dirs, missing):
+    """给用户怎么办：缺文件就重新解压；多出东西就挪走或换空目录，程序不带着它们跑"""
+    parts = []
+    if FILE_MANIFEST in missing:
+        parts.append('程序目录不完整：文件清单没了、或清单和程序不是同一版。\n'
+                     '多半是没按压缩包完整解压，或者被手动动过。\n'
+                     '处理办法：重新把新版的压缩包解压到一个【空文件夹】，用新目录里的程序。')
+    elif missing:
+        parts.append('程序文件少了：多半是没解压全、被杀毒软件隔离，或者被手动删过。\n'
+                     '处理办法：重新把新版的压缩包解压到一个【空文件夹】，用新目录里的程序。')
+    if files or dirs:
+        parts.append('多出来的东西：程序不会自动删，也不会带着它们运行。\n'
+                     '处理办法：把多出来的文件 / 文件夹挪走或删掉；想彻底干净就解压到一个'
+                     '【空文件夹】再用。')
+    return '\n\n'.join(parts)
 
 
 UPD_CMD_NAME = '.upd_apply.cmd'
-UPD_PS1_NAME = '.upd_extract.ps1'
+UPD_PS1_NAME = '.upd_extract.ps1'   # 旧版更新脚本，已不用；启动时顺手清掉残留
 UPD_FAIL_MARK = '.upd_fail.txt'
-UPD_TMP_DIR = '.upd_new'      # 更新暂存目录：新包先解到这里，验证通过才动程序目录
-UPD_LOG_NAME = 'zzz_fix_upd.log'   # 更新过程日志（写在 %TEMP%，程序目录会被清空）
+UPD_TMP_DIR = '.upd_new'      # 更新暂存目录：新版先解到这里，核对过清单才动程序目录
 FILE_MANIFEST = '.zzz_files.txt'        # 随包文件清单（打包时 build_version.py 生成，跟着 zip 发）
-FILE_MANIFEST_PREV = '.zzz_files_prev.txt'  # 上次启动记下的清单，手动解压覆盖的残留靠它对比出来
+FILE_MANIFEST_PREV = '.zzz_files_prev.txt'  # 旧版本留下的对比清单；不再生成，启动时顺手清掉
 DEP_DIR_NAME = '依赖包勿删'   # onedir 依赖目录名（与 一键打包发布.bat 的 --contents-directory 同步维护）
 
 
@@ -11833,87 +12058,60 @@ def _cmd_escape(p):
     return p if '%' not in p else None
 
 
-def _ps_quote(p):
-    """PowerShell 单引号字面量：内含单引号翻倍"""
-    return p.replace("'", "''")
-
-
-def _build_update_ps1(fdir, zip_dest, exe_name):
-    """更新脚本（PowerShell，UTF-8 BOM 供 PS 5.1 正确读中文）。
-    语义：解压到程序目录下的暂存 .upd_new → 验证新 exe 在 → 删程序目录里除保留项
-    之外的全部旧文件（旧版本删掉的文件/目录不再残留）→ 暂存内容搬进程序目录。
-    保留项：本体 exe（直接覆盖）、设置 json、新版 zip（解压源）、更新脚本自身、失败标记。
-    先解压后清理：解压失败时程序目录未被动过，旧程序仍可正常运行。
-    失败写 .upd_fail.txt(原因码) 并以 1 退出，cmd 据此走失败分支"""
-    keep = [exe_name, 'zzz_fix_设置.json', os.path.basename(zip_dest),
-            UPD_CMD_NAME, UPD_PS1_NAME, UPD_FAIL_MARK, UPD_TMP_DIR]
-    lines = [
-        "$ErrorActionPreference = 'Stop'",
-        "$dir  = '{0}'".format(_ps_quote(fdir)),
-        "$zip  = '{0}'".format(_ps_quote(zip_dest)),
-        "$exe  = '{0}'".format(_ps_quote(exe_name)),
-        "$mark = '{0}'".format(UPD_FAIL_MARK),
-        "$tmp  = Join-Path $dir '{0}'".format(UPD_TMP_DIR),
-        "$log  = Join-Path $env:TEMP '{0}'".format(UPD_LOG_NAME),
-        "$keep = @({0})".format(
-            ', '.join("'{0}'".format(_ps_quote(k)) for k in keep)),
-        'function Log($m) {',
-        "  try { Add-Content -LiteralPath $log -Value ((Get-Date -Format 'MM-dd HH:mm:ss')"
-        " + ' ' + $m) -Encoding UTF8 } catch { }",
-        '}',
-        'function Fail($code) {',
-        "  try { Set-Content -LiteralPath (Join-Path $dir $mark)"
-        " -Value ('UPD_FAIL:' + $code) -Encoding ASCII } catch { }",
-        "  Log ('fail ' + $code)",
-        '  exit 1',
-        '}',
-        "Log ('start {0} -> {1}')".format(APP_VERSION, os.path.basename(zip_dest)),
-        'if (Test-Path -LiteralPath $tmp) {',
-        '  try { Remove-Item -LiteralPath $tmp -Recurse -Force } catch { Fail \'CLEAN\' }',
-        '}',
-        'try { New-Item -ItemType Directory -Path $tmp -Force | Out-Null } catch { Fail \'EXTRACT\' }',
-        'try {',
-        '  Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force',
-        "} catch { Fail 'EXTRACT' }",
-        'if (-not (Test-Path -LiteralPath (Join-Path $tmp $exe))) { Fail \'NOEXE\' }',
-        "Log 'extract ok, clean old files'",
-        'try {',
-        '  Get-ChildItem -LiteralPath $dir -Force |',
-        '    Where-Object { $keep -notcontains $_.Name } |',
-        '    Remove-Item -Recurse -Force',
-        "} catch { Fail 'CLEAN' }",
-        "Log 'clean ok, move new files'",
-        'try {',
-        '  Get-ChildItem -LiteralPath $tmp -Force | Move-Item -Destination $dir -Force',
-        "} catch { Fail 'MOVE' }",
-        'Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue',
-        "Log 'update ok'",
-        'exit 0',
-    ]
-    return '\r\n'.join(lines) + '\r\n'
+def _stage_update(zip_dest):
+    """把新版 zip 解到程序目录下的暂存 .upd_new 并核对包内清单。
+    解压用 Python 自带的 zipfile：同一个包实测 0.8 秒，PowerShell 的 Expand-Archive 要 13 秒。
+    【此时旧程序还在跑，程序目录一个字节都没动】：解压失败 / 包不完整就抛错，
+    调用方回退到手动更新指引，用户手上那份程序还是好的。
+    返回暂存目录路径；失败抛 RuntimeError"""
+    exe = _program_target()
+    fdir = os.path.dirname(exe)            # 程序目录 F
+    tmp = os.path.join(fdir, UPD_TMP_DIR)
+    _rmtree_retry(tmp)                     # 上一次更新留下的暂存（半途失败会剩）
+    if os.path.isdir(tmp):
+        raise RuntimeError('上次更新的暂存目录删不掉（有文件被占用），重启后再试')
+    try:
+        with zipfile.ZipFile(zip_dest) as z:
+            z.extractall(tmp)              # 条目名由 zipfile 自己清理（挡绝对路径 / ..）
+    except Exception as e:
+        _rmtree_retry(tmp)
+        raise RuntimeError('解压新版失败：{}'.format(e))
+    exe_name = os.path.basename(exe)
+    if not os.path.isfile(os.path.join(tmp, exe_name)):
+        _rmtree_retry(tmp)
+        raise RuntimeError('新版压缩包里没有程序主文件 {}'.format(exe_name))
+    _ver, rels = _read_manifest(os.path.join(tmp, FILE_MANIFEST))
+    if rels:
+        lack = [r for r in sorted(rels)
+                if not os.path.isfile(os.path.join(tmp, *r.split('/')))]
+        if lack:
+            _rmtree_retry(tmp)
+            raise RuntimeError('新版解出来少了 {} 个文件（如 {}），压缩包不完整或磁盘满了'
+                               .format(len(lack), '、'.join(lack[:3])))
+    return tmp
 
 
 def _build_update_cmd(zip_dest):
-    """frozen 全自动更新：生成 .upd_apply.cmd（GBK，cmd 默认码页）+ .upd_extract.ps1。
-    cmd 语义：等本进程(PID)退出 → PowerShell 清理旧文件并铺开新版（见 _build_update_ps1）→
-    启动新 exe。解压用 PowerShell（系统自带 tar.exe 实测被杀毒拦截，弃用）。
-    失败原因由 ps1 写 .upd_fail.txt，cmd 仅兜底 UNKNOWN 并重启当前 exe（程序目录多半完好）。
+    """生成 .upd_apply.cmd（GBK，cmd 默认码页）。新版已经解在 .upd_new 里了，这里只负责：
+    等本进程(PID)退出 → robocopy 把暂存内容【合并】进程序目录（同名覆盖、多出来的不动）
+    → 启动新 exe。
+    用 robocopy 而不是 PowerShell：系统自带、快、天然是覆盖合并语义
+    （Move-Item 遇到同名目录会直接报错，是坑）。
+    【不删任何文件】：用户自己放在程序目录里的东西一律保留，新版程序启动时会按清单提示。
+    失败写 .upd_fail.txt(原因码)，cmd 兜底 UNKNOWN 并重启当前 exe。
     返回 .cmd 路径；非 frozen / 路径含 % / 写盘失败 → None（调用方走手动解压指引）"""
     if not getattr(sys, 'frozen', False):
         return None
     exe = _program_target()
     fdir = os.path.dirname(exe)            # 程序目录 F
-    for s in (zip_dest, fdir, exe):
+    for s in (fdir, exe):
         if _cmd_escape(s) is None:
             return None
     exe_name = os.path.basename(exe)
     # 更新完的重启要回到同一个模式：黑窗模式别被弹成 GUI
     cargs = ' --cli' if _console_mode_requested() else ''
     cmd_path = os.path.join(fdir, UPD_CMD_NAME)
-    ps1_path = os.path.join(fdir, UPD_PS1_NAME)
     try:
-        with open(ps1_path, 'w', encoding='utf-8-sig') as f:
-            f.write(_build_update_ps1(fdir, zip_dest, exe_name))
         lines = [
             '@echo off',
             'chcp 936 >nul',
@@ -11921,7 +12119,8 @@ def _build_update_cmd(zip_dest):
             'set "PID={pid}"',
             'set "DIR={fdir}"',
             'set "EXE={fdir}\\{ename}"',
-            'set "PS1={ps1}"',
+            'set "NEW={fdir}\\{tmpname}"',
+            'set "MARK={fdir}\\{mark}"',
             'set "FIND=%WINDIR%\\System32\\find.exe"',
             'set /a N=0',
             ':wait',
@@ -11934,62 +12133,71 @@ def _build_update_cmd(zip_dest):
             'timeout /t 1 /nobreak >nul',
             ':waited',
             'taskkill /f /im "{ename}" >nul 2>&1',
-            'powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" >nul 2>&1',
-            'if errorlevel 1 goto fail',
-            'if not exist "%EXE%" goto fail',
-            'if exist "%PS1%" del /q "%PS1%" >nul 2>&1',
+            'rem robocopy 合并：同名覆盖、多出来的不动；退出码 0~7 都算成功，>=8 才是失败',
+            'robocopy "%NEW%" "%DIR%" /E /MOVE /R:2 /W:1 /NFL /NDL /NJH /NJS /NP >nul',
+            'if errorlevel 8 goto fail',
+            'if not exist "%EXE%" goto fail_noexe',
+            'if exist "%NEW%" rmdir /s /q "%NEW%" >nul 2>&1',
             'cd /d "%DIR%"',
             'start "" "%EXE%"{cargs}',
             'exit /b 0',
             ':fail',
-            'if not exist "%DIR%\\.upd_fail.txt" echo UPD_FAIL:UNKNOWN> "%DIR%\\.upd_fail.txt"',
-            'if exist "%PS1%" del /q "%PS1%" >nul 2>&1',
+            'echo UPD_FAIL:MOVE> "%MARK%"',
+            'start "" "%EXE%"{cargs}',
+            'exit /b 1',
+            ':fail_noexe',
+            'echo UPD_FAIL:NOEXE> "%MARK%"',
             'start "" "%EXE%"{cargs}',
             'exit /b 1',
         ]
-        text = '\r\n'.join(lines).format(pid=os.getpid(), fdir=fdir,
-                                         ps1=ps1_path, ename=exe_name,
+        text = '\r\n'.join(lines).format(pid=os.getpid(), fdir=fdir, ename=exe_name,
+                                         tmpname=UPD_TMP_DIR, mark=UPD_FAIL_MARK,
                                          cargs=cargs)
         with open(cmd_path, 'w', encoding='gbk') as f:
             f.write(text)
         return cmd_path
     except (OSError, UnicodeEncodeError, UnicodeDecodeError):
-        for p in (cmd_path, ps1_path):
-            try:
-                os.remove(p)
-            except OSError:
-                pass
+        try:
+            os.remove(cmd_path)
+        except OSError:
+            pass
         return None
 
 
-
 def _spawn_update_cmd(zip_dest):
-    """frozen 全自动更新入口：生成并静默拉起 .upd_apply.cmd，随后本进程应立即退出，
-    cmd 在进程结束后原地覆盖新程序并重启。返回 True=已接管；False=走手动解压指引"""
+    """frozen 全自动更新入口：先把新版解到 .upd_new（这步在本进程里做，快，
+    失败时程序目录没被动过），再生成并静默拉起 .upd_apply.cmd，随后本进程应立即退出，
+    cmd 等进程结束后用 robocopy 合并新版并重启。
+    返回 (是否已接管, 失败原因)：接管了就退出进程；没接管 + 有原因就把它显示给用户，
+    然后走手动解压指引"""
+    if not getattr(sys, 'frozen', False):
+        return False, ''
+    try:
+        _stage_update(zip_dest)
+    except RuntimeError as e:
+        return False, str(e)
     cmd = None
     try:
-        if not getattr(sys, 'frozen', False):
-            return False
         cmd = _build_update_cmd(zip_dest)
         if not cmd or not os.path.exists(cmd):
-            return False
+            return False, ''
         subprocess.Popen(['cmd.exe', '/c', cmd], cwd=os.path.dirname(cmd) or None,
                          creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000),
                          close_fds=True)
-        return True
-    except Exception:
+        return True, ''
+    except Exception as e:
         if cmd:
             try:
                 os.remove(cmd)
             except OSError:
                 pass
-        return False
+        return False, '准备更新脚本失败：{}'.format(e)
 
 
 UPD_FAIL_REASONS = {
-    'EXTRACT': '新版解压失败（压缩包损坏或被杀毒软件拦截）',
+    'EXTRACT': '新版解压失败（压缩包损坏、磁盘满了或被杀毒软件拦截）',
     'NOEXE':   '新版压缩包里缺少程序主文件',
-    'CLEAN':   '清理旧文件失败（有文件被占用，多为杀毒软件正在扫描）',
+    'CLEAN':   '更新暂存目录没清掉（有文件被占用，多为杀毒软件正在扫描）',
     'MOVE':    '新版文件铺开失败（有文件被占用，多为杀毒软件正在扫描）',
     'UNKNOWN': '原因未知',
 }
@@ -12018,12 +12226,12 @@ def _update_fail_msg(code):
     """失败码 → 启动提示文案（zip 保留在程序目录可手动处理）"""
     code = code or 'UNKNOWN'
     tail = ('程序已恢复运行。新版压缩包保留在程序目录，\n'
-            '可手动右键解压覆盖更新。')
+            '想手动更新就把它解压到一个【空文件夹】，用新目录里的程序。')
     if code in ('CLEAN', 'MOVE'):
-        # 半更新：旧文件没清干净或新文件没铺完，必须手动解压覆盖才稳妥
-        tail = ('程序目录可能处于半更新状态，请关掉本程序与杀毒软件的实时扫描后，\n'
-                '手动右键解压程序目录里的新版压缩包（选“解压到当前文件夹”、'
-                '提示覆盖全部选“是”）。')
+        # 半更新：目录可能新旧混着，别再原地覆盖
+        tail = ('程序目录可能处于半更新状态。请关掉本程序与杀毒软件的实时扫描后，\n'
+                '把程序目录里的新版压缩包解压到一个【空文件夹】，用新目录里的程序，\n'
+                '旧的这份目录别再用了。')
     return ('上次自动更新未完成（{}）。\n'
             '{}').format(UPD_FAIL_REASONS.get(code, code), tail)
 
@@ -12055,11 +12263,17 @@ def cli_check_update(manual=False):
     print()
     print('发现新版本 {}（当前 {}）'.format(info['new'], APP_VERSION))
     print('来源: {}'.format(info['url']))
+    body_lines = _upd_body_lines(info)
+    if body_lines:
+        print()
+        print('本次更新内容：')
+        for ln in body_lines:
+            print('    {}'.format(ln))
     auto_mode = False
     try:
         if info.get('kind') == 'zip':
             ans = input('选择更新方式：\n'
-                        '  a - 自动更新（清掉旧文件后铺开新版并重启，约 5~10 秒）\n'
+                        '  a - 自动更新（覆盖为最新版并重启，约 5 秒）\n'
                         '  m - 手动更新（仅下载压缩包，自行解压替换）\n'
                         '  其他 - 取消\n> ').strip().lower()
             auto_mode = ans in ('a', 'auto', '自动')
@@ -12085,25 +12299,31 @@ def cli_check_update(manual=False):
         dest = os.path.join(tgt_dir, info['fname'])
         tmp = dest + '.part'
         try:
-            _download_file(info['url'], tmp, pct_cb=pct)
+            host, note = _download_with_fallback(info, tmp, pct_cb=pct)
+            print('\r下载完成{}    '.format(note))
+            print('包校验{}'.format(_verify_package(tmp, info)))
             dest = _save_downloaded(tmp, dest)
         except Exception as e:
             print()
             print('更新失败: {}'.format(e))
             return False
-        print('\r新版压缩包已下载：{}'.format(dest))
+        print('新版压缩包已下载：{}'.format(dest))
         print()
-        if auto_mode and _spawn_update_cmd(dest):
-            print('自动更新中… 约需 5~10 秒，期间请勿手动打开程序，安装完成后自动重启')
+        auto_ok, why = _spawn_update_cmd(dest) if auto_mode else (False, '')
+        if auto_ok:
+            print('自动更新中… 约需 5 秒，期间请勿手动打开程序，安装完成后自动重启')
             return True   # 退出进程，cmd 原地覆盖新版后启动
+        if why:
+            print('自动更新没开始：{}'.format(why))
         print('手动更新步骤：')
-        print('1. 右键压缩包，选“解压到当前文件夹”，提示覆盖时全部选“是/替换”')
-        print('2. 重新打开程序（上一版删掉的文件会在下次启动时自动清掉）')
+        print('1. 把压缩包解压到一个【空文件夹】（别覆盖旧目录）')
+        print('2. 打开那个新文件夹里的程序；以后就用新目录，自己需要的文件手动拷过去')
         print('（程序即将自动退出）')
         return True   # 直接退出，释放旧程序文件占用
     tmp = os.path.join(tgt_dir, '.update_{}.part'.format(os.getpid()))
     try:
-        _download_file(info['url'], tmp, pct_cb=pct)
+        _download_with_fallback(info, tmp, pct_cb=pct)
+        print('\r包校验{}    '.format(_verify_package(tmp, info)))
     except Exception as e:
         print()
         print('更新失败: {}'.format(e))
@@ -12487,6 +12707,10 @@ dump 参照
         索引与顶点修复工具\\dump\\   （旧位置，有数据就用）
     也可以点“选择 dump 文件夹”或直接把 dump 文件夹拖进窗口
     （有 .json、没有 .ini 会被认出来），选过的目录会记住，下次启动自动读。
+
+    自己加的 dump 只能放程序目录【外面】：程序启动时会检查程序目录，
+    发现不属于本程序的文件就不让用。所以别往上面这些 dump\\ 里放东西，
+    找个程序目录外的地方新建文件夹放好，再用“选择 dump 文件夹”选它。
 
     dump 里缺哪个角色 / 哪个网格，反馈给作者补一份就行 —— 抓 dump 是作者的事。
 
@@ -13993,6 +14217,10 @@ def dump_hint():
     print('  这个文件夹程序不自动建，自己放一份就行（两处都认，都有时后者优先）：')
     for folder in places:
         print('    {}'.format(folder))
+    print('  自己加的 dump 只能放程序目录【外面】：上面这些位置都在程序目录里，')
+    print('  放进去会让启动检查判成“目录不干净”而不让启动。')
+    print('  到程序目录外面新建个文件夹放好，再把文件夹拖进窗口就行')
+    print('  （图形界面点“选择 dump 文件夹”选它，选过会记住，下次自动读）。')
     print('  一个参照一个子文件夹（名字写成「角色-部位」），里面放游戏内 F8 抓的 json；')
     print('  要推骨骼索引（VGX）就再放同一网格的 -*Blend.buf 和 -*Position.buf；')
     print('  老 mod 的 texcoord 比游戏少几块（只有 2 条 UV）时，还要 -*Texcoord.buf 才能推落位。')
@@ -15482,17 +15710,10 @@ class App:
         self._upd_pending = False       # 已发现新版待用户处理（按钮闪烁提醒）
         self._upd_info = None           # 待处理新版的信息（按钮点击时直接用，免重新查）
         self._upd_flash = False         # 按钮闪烁相位
-        gone = _cleanup_stale_old()     # 清理上次更新残留（含旧版本遗留文件，见 _cleanup_extra_files）
-        if gone:
-            self._log('已清掉上个版本残留的 {} 个文件：{}'.format(
-                len(gone), '、'.join(gone[:5]) + ('…' if len(gone) > 5 else '')), 'gray')
-        code = _read_update_fail_marker()
-        if code:
-            # 上次全自动更新失败：提示一次并删标记（zip 仍留在程序目录可手动解压）
-            self.root.after(500, lambda: messagebox.showwarning(
-                '更新未完成', _update_fail_msg(code), parent=self.root))
-        if cfg.get('update_auto_start', True) and _upd_configured():
-            self.root.after(2500, self._auto_update_check)
+        _cleanup_stale_old()            # 清理更新残留（程序自己的临时文件，不动用户文件）
+        code = _read_update_fail_marker()   # 上次自动更新失败原因（先读，免得被拦截流程吃掉）
+        # 目录检查放最前：不干净就不让用；没问题才提示"上次更新失败"并安排自动查更新
+        self.root.after(600, lambda: self._startup_foreign_check(code))
 
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
         self._poll_start()
@@ -15985,16 +16206,21 @@ class App:
                                      justify='left', anchor='w')
         self.iv_char_hint.grid(row=3, column=2, columnspan=2, padx=(8, 14),
                                pady=(3, 4), sticky='ew')
+        self.iv_dump_tip = tk.Label(
+            card, text='自己加的 dump 要放程序目录【外面】的文件夹里，'
+                       '用“选择 dump 文件夹”选它（会记住）；程序目录里出现不属于本程序的文件会被启动检查拦下。',
+            bg=CARD, fg=DIM, font=(FONT, 8), justify='left', wraplength=760)
+        self.iv_dump_tip.grid(row=4, column=0, columnspan=4, padx=14, pady=(0, 3), sticky='w')
         # 注意那行按模式换文字（见 _iv_set_mode）
         self.iv_note = tk.Label(card, text='', bg=CARD, fg=WARN, font=(FONT, 8),
                                 justify='left', wraplength=760)
-        self.iv_note.grid(row=4, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
+        self.iv_note.grid(row=5, column=0, columnspan=4, padx=14, pady=(0, 8), sticky='w')
         self.iv_entry.bind('<Return>', lambda e: self._iv_start('apply'))
         self.iv_pending_dumps = []      # 本次跑动中拖进来的 dump，跑完统一登记
         self._iv_inited = False
         # 通用脸部修复模式下藏起来的两行（dump 参照 / 参照文件夹）
         self.iv_dump_widgets = [self.iv_dump_title, self.iv_dump_label,
-                                self.iv_dump_pick, self.iv_dump_reload]
+                                self.iv_dump_pick, self.iv_dump_reload, self.iv_dump_tip]
         self.iv_ref_widgets = [self.iv_char_title, self.iv_char, self.iv_char_hint]
         self._iv_set_mode('normal', quiet=True)
 
@@ -17279,7 +17505,63 @@ class App:
         except Exception:
             pass
 
-    # ---------------- 自动更新 ----------------
+    # ---------------- 启动目录检查 / 自动更新 ----------------
+    def _startup_foreign_check(self, code=None):
+        """启动第一件事：检查程序目录（少了 / 多了都不让用）。
+        【只提示不删，也不让程序跑】：更新只做覆盖，目录一旦不干净（旧版本残留、
+        用户自己放的东西）就先让用户处理，避免在半脏的目录里干活。
+        检查通过才提示"上次更新失败"（code）并安排启动自动查更新。
+        设置文件里 foreign_check=false 可跳过这一步（作者调试用）。
+        """
+        if not _load_config().get('foreign_check', True):
+            self._log('已按设置跳过程序目录检查（foreign_check=false）', 'gray')
+        else:
+            files, dirs, missing = _scan_program_dir()
+            if not (files is None or (not files and not dirs and not missing)):
+                self._log('程序目录检查不通过（缺 {} 个 / 多 {} 个文件{}），已停止启动'.format(
+                    len(missing), len(files), '、{} 个文件夹'.format(len(dirs)) if dirs else ''),
+                    'err')
+                for line in describe_dir_check(files, dirs, missing).splitlines():
+                    self._log('    ' + line, 'gray')
+                self._disk_block_dialog(files, dirs, missing, code)
+                self._upd_exit()
+                return
+        if code:
+            messagebox.showwarning('更新未完成', _update_fail_msg(code), parent=self.root)
+        self._schedule_auto_update()
+
+    def _disk_block_dialog(self, files, dirs, missing, code=None):
+        """目录不干净的拦截框：是=打开程序目录，否=打开发布页下载新版，取消=直接退出"""
+        extra = ''
+        if code:
+            extra = '\n另外：上次自动更新没做完（{}）。\n'.format(
+                UPD_FAIL_REASONS.get(code, code))
+        text = ('程序目录里有这些情况：\n\n{}\n\n{}{}\n'
+                '重下一个压缩包、解压到一个【空文件夹】再用，是彻底解决的办法。\n\n'
+                '点【是】打开程序目录（去挪走 / 删掉那些东西），\n'
+                '点【否】用浏览器打开发布页下载新版，\n'
+                '点【取消】直接退出程序。\n'
+                '程序目录：\n{}\n\n'
+                '（实在不想检查：在这个目录的 zzz_fix_设置.json 里加一行 '
+                '"foreign_check": false 再启动，不推荐）').format(
+                    describe_dir_check(files, dirs, missing),
+                    dir_check_advice(files, dirs, missing), extra,
+                    os.path.dirname(_program_target()))
+        ask = messagebox.askyesnocancel('程序目录检查不通过，已停止启动', text,
+                                        parent=self.root)
+        try:
+            if ask:
+                subprocess.Popen(['explorer.exe', os.path.dirname(_program_target())])
+            elif ask is False:
+                webbrowser.open(_releases_page_url())
+        except Exception:
+            pass
+
+    def _schedule_auto_update(self):
+        """目录检查通过后才安排启动自动查更新"""
+        if _load_config().get('update_auto_start', True) and _upd_configured():
+            self.root.after(2000, self._auto_update_check)
+
     def _upd_reset(self):
         """恢复按钮/进度条到空闲态（同时清除待处理新版标记，停闪烁）"""
         self._updating = False
@@ -17320,10 +17602,17 @@ class App:
             pass
 
     def _upd_show_prompt(self, info):
-        """主线程：新版选择框。是=自动更新；否=手动更新；取消=忽略该版本（不再自动提醒）"""
+        """主线程：新版选择框。是=自动更新；否=手动更新；取消=忽略该版本（不再自动提醒）。
+        框里带上这次更新内容（Release 正文），太长就截断，完整内容在日志里"""
+        body_lines = _upd_body_lines(info, limit=14)
+        body_txt = ''
+        if body_lines:
+            body_txt = '本次更新内容：\n{}\n\n'.format('\n'.join('  ' + ln for ln in body_lines))
         auto_txt = ('当前版本：{}\n最新版本：{}\n\n'
+                    + body_txt +
                     '选择更新方式：\n\n'
-                    '  是(Y) - 自动更新：清掉旧文件后铺开新版并重启，约需 5~10 秒\n'
+                    '  是(Y) - 自动更新：覆盖为最新版并重启，约需 5 秒\n'
+                    '           （只覆盖，不删程序目录里的任何文件）\n'
                     '  否(N) - 手动更新：仅下载压缩包，自行解压替换\n'
                     '  取消 - 忽略此版本，不再提醒（可点“检查更新”手动查看）'
                     ).format(APP_VERSION, info['new'])
@@ -17399,6 +17688,12 @@ class App:
         self.q.put(('upd_done', None))
         self.q.put(('upd_msg', 'accent',
                     '发现新版本 {}（来源文件 {}）'.format(info['new'], info['fname'])))
+        # 更新内容（Release 正文）：先刷进日志，弹窗里也会带上
+        body_lines = _upd_body_lines(info)
+        if body_lines:
+            self.q.put(('upd_msg', 'gray', '本次更新内容：'))
+            for ln in body_lines:
+                self.q.put(('upd_msg', 'gray', '    ' + ln))
         if manual:
             self.q.put(('upd_prompt', info))   # 用户主动点按钮：直接弹选择框
             return
@@ -17425,33 +17720,43 @@ class App:
                          daemon=True).start()
 
     def _upd_download_worker(self, info):
-        """后台线程：下载。zip 模式直接存为最终压缩包名；py 模式存临时文件待自替换"""
+        """后台线程：下载 + 验包。zip 模式直接存为最终压缩包名；py 模式存临时文件待自替换。
+        下载按 info['urls'] 顺序换源（Gitee 挂了用 GitHub）；验包不过就丢掉，不留残件"""
         self._update_tmp = None
+        tmp = None
         try:
             zdir = os.path.dirname(_program_target())
             if info.get('kind') == 'zip':
                 # 手动更新模式：下成正式名字的 zip，用户自行解压替换
                 dest = os.path.join(zdir, info['fname'])
                 tmp = dest + '.part'
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
-                _download_file(info['url'], tmp,
-                               pct_cb=lambda p: self.q.put(('upd_prog', p)))
-                dest = _save_downloaded(tmp, dest)
-                self._update_tmp = dest
             else:
                 tmp = os.path.join(zdir, '.update_{}.part'.format(os.getpid()))
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
-                _download_file(info['url'], tmp,
-                               pct_cb=lambda p: self.q.put(('upd_prog', p)))
-                self._update_tmp = tmp
+                dest = tmp
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            host, note = _download_with_fallback(
+                info, tmp, pct_cb=lambda p: self.q.put(('upd_prog', p)))
+            if host and len(info.get('urls') or []) > 1:
+                self.q.put(('upd_msg', 'gray', '已从 {} 下载{}'.format(host, note)))
+            elif note:
+                self.q.put(('upd_msg', 'gray', '下载完成{}'.format(note)))
+            pk_note = _verify_package(tmp, info)
+            if pk_note:
+                self.q.put(('upd_msg', 'gray', '包校验{}'.format(pk_note)))
+            if dest != tmp:
+                dest = _save_downloaded(tmp, dest)
+            self._update_tmp = dest
             self.q.put(('upd_done', info))
         except Exception as e:
+            if tmp:
+                try:      # 验包失败 / 下载失败：别把残件留在程序目录
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                except OSError:
+                    pass
             self.q.put(('upd_fail', '下载新版本失败：{}'.format(e)))
 
     def _upd_finish(self, info):
@@ -17467,9 +17772,11 @@ class App:
             self._upd_reset()
             if dest and os.path.exists(dest):
                 self._log('新版压缩包已下载：{}'.format(dest), 'accent')
-                # 自动更新：拉起 .upd_apply.cmd 后本进程立即退出，cmd 等进程结束
-                # 原地覆盖新程序并重启；失败退回手动解压指引
-                if self._upd_auto and _spawn_update_cmd(dest):
+                # 自动更新：先在本进程里把新版解到 .upd_new（快，失败也不动程序目录），
+                # 再拉起 .upd_apply.cmd；cmd 等本进程退出后用 robocopy 合并新版并重启。
+                # 任何一步失败都退回手动解压指引
+                auto_ok, why = _spawn_update_cmd(dest) if self._upd_auto else (False, '')
+                if auto_ok:
                     self._log('自动更新中，程序即将退出，安装完成后自动重启。', 'accent')
                     try:
                         sys.stdout, sys.stderr = self._real_stdout, self._real_stderr
@@ -17481,19 +17788,23 @@ class App:
                         '自动更新中',
                         '新版已下载。\n\n'
                         '点【确定】后程序将退出并开始自动更新，\n'
-                        '约需 5~10 秒，完成后自动重启。\n'
+                        '约需 5 秒，完成后自动重启。\n'
                         '期间请勿手动打开程序。\n\n'
-                        '更新会清掉程序目录里的旧文件（设置和压缩包保留），\n'
-                        '自行加进程序目录的文件请先挪走。',
+                        '更新只覆盖本程序自己的文件，\n'
+                        '你自己放在程序目录里的文件不会被删。',
                         parent=self.root)
                     self._upd_exit()
                     return
-                guide = ('新版压缩包已下载到：\n{}\n\n手动更新步骤（请手动操作）：\n'
-                         '1. 右键压缩包，选“解压到当前文件夹”，\n'
-                         '   提示覆盖时全部选“是/替换”\n'
-                         '2. 重新打开程序\n'
-                         '（上一版删掉的文件会在下次启动时自动清掉，不用手动删）\n\n'
-                         '点【确定】后本窗口关闭（程序退出），按上述步骤手动更新。').format(dest)
+                if why:
+                    self._log('自动更新没开始：{}'.format(why), 'warn')
+                guide = ('{}{}'.format(
+                    '自动更新没做成：{}\n\n'.format(why) if why else '',
+                    '新版压缩包已下载到：\n{}\n\n手动更新步骤（请手动操作）：\n'
+                    '1. 新建一个空文件夹，把压缩包解压进去\n'
+                    '   （别解压到旧目录里覆盖 —— 那样会留下一堆旧版本残留文件）\n'
+                    '2. 打开新文件夹里的程序；以后就用这个新目录，\n'
+                    '   自己需要的文件（自己抓的 dump 等）手动拷过去\n\n'
+                    '点【确定】后本窗口关闭（程序退出），按上述步骤手动更新。').format(dest))
                 try:
                     # 打开文件夹并选中压缩包，方便用户操作
                     subprocess.Popen(['explorer.exe', '/select,', dest])
@@ -17609,11 +17920,18 @@ def gui_main():
 def _run_cli():
     _ensure_console()             # 打包版没有控制台，先开出黑窗再说话
     _enable_ansi()
-    gone = _cleanup_stale_old()   # 与 GUI 一致：启动时清理更新残留(.upd_apply.cmd/.upd_extract.ps1 等)
-    if gone:
-        print('已清掉上个版本残留的 {} 个文件'.format(len(gone)))
-        for rel in gone[:10]:
-            print('  - {}'.format(rel))
+    _cleanup_stale_old()   # 与 GUI 一致：清理更新残留(.upd_apply.cmd/.upd_extract.ps1 等，程序自己的临时文件)
+    if _load_config().get('foreign_check', True):
+        # 每次启动检查程序目录：文件少了或多了都停止启动（只提示不删，让用户自己处理）
+        files, dirs, missing = _scan_program_dir()
+        if files or dirs or missing:
+            print(c('程序目录检查不通过，已停止启动：', Style.YELLOW))
+            print(describe_dir_check(files, dirs, missing))
+            print()
+            print(dir_check_advice(files, dirs, missing))
+            print('程序目录：{}'.format(os.path.dirname(_program_target())))
+            input('\n按 "Enter" 退出...\n')
+            return
     code = _read_update_fail_marker()
     if code:
         print('警告：{}'.format(_update_fail_msg(code)))
