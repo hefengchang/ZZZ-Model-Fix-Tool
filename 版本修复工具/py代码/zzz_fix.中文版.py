@@ -1952,6 +1952,18 @@ def indexed_segments(indices, counts=None):
     return [(start, count) for start, count in segments]
 
 
+def insert_index_count(section_text, count):
+    """在 match_first_index 行后面补一行 match_index_count（缩进照抄）；找不到该行返回 None"""
+    m = re.search(r'\n([ \t]*)match_first_index\s*=\s*[\d]+[ \t]*(\n|$)',
+                  section_text, flags=re.IGNORECASE)
+    if not m:
+        return None
+    line = '{}match_index_count = {}\n'.format(m.group(1), count)
+    if not m.group(2):   # match_first_index 是节的最后一行，先补换行
+        return section_text[:m.end()] + '\n' + line + section_text[m.end():]
+    return section_text[:m.end()] + line + section_text[m.end():]
+
+
 def segment_of(segments, value):
     """value 落在哪个分段，返回 (起点, 计数)；不在任何段内返回 None。
     末段没有计数时按「一直到结尾」处理，计数为 None 由调用方决定要不要改"""
@@ -2053,7 +2065,8 @@ class transfer_indexed_sections():
         # 目标段一律以【索引映射的结果】为准：包含关系在边界后移时会配错段
         # （例：源 57612 -> 目标 59094，57612 仍落在目标首段 [0,59094) 里）
         trg_count_of = {str(start): count for start, count in trg_segments}
-        for src_start, src_count in indexed_segments(self.src_indices, self.src_counts):
+        src_segments = indexed_segments(self.src_indices, self.src_counts)
+        for src_start, src_count in src_segments:
             if (src_count is None
                     or str(src_start) in drop_set
                     or str(src_start) not in actual_indices):
@@ -2061,6 +2074,12 @@ class transfer_indexed_sections():
             trg_count = trg_count_of.get(remap.get(str(src_start)))
             if trg_count is not None:
                 count_remap[str(src_count)] = str(trg_count)
+
+        # 新版多出一段（目标段数 > 源段数）：没写 count 的索引节本来是「整段通吃」，
+        # 新版会盖到新出现的段上 —— 补一行 match_index_count 限定回自己那一段。
+        # 段数没增加的 hash 不做这事（那种情况下不写 count 往往是有意的整段覆盖）
+        added_segment = bool(src_segments) and len(trg_segments) > len(src_segments)
+        last_trg_start = str(trg_segments[-1][0]) if trg_segments else None
 
         # 原地改写 match_first_index / match_index_count：只动配对的节，其余一律不碰
         # （match_index_count 优先走 object_index_counts 的计数映射；没有该字段时退回索引映射，
@@ -2109,6 +2128,17 @@ class transfer_indexed_sections():
                     new_section, count=1, flags=re.IGNORECASE
                 )
 
+            # 新版多出一段：没写 count 的节补一行，限定回自己那一段（末段不用管）
+            if added_segment and cnt is None:
+                now_idx = re.search(r'\n\s*match_first_index\s*=\s*([\d]+)',
+                                    new_section, flags=re.IGNORECASE)
+                if now_idx and now_idx.group(1) != last_trg_start:
+                    seg_count = trg_count_of.get(now_idx.group(1))
+                    if seg_count is not None:
+                        filled = insert_index_count(new_section, seg_count)
+                        if filled:
+                            new_section = filled
+
             if new_section != m.group(0):
                 tname = section_title_of(m.group(0))
                 old_sec = m.group(0)
@@ -2120,6 +2150,8 @@ class transfer_indexed_sections():
                     section_notes.append('+ {}: match_first_index = {} 更新为 {}'.format(tname, oi.group(1), ni.group(1)))
                 if oc and nc and oc.group(1) != nc.group(1):
                     section_notes.append('+ {}: match_index_count = {} 更新为 {}'.format(tname, oc.group(1), nc.group(1)))
+                if oc is None and nc:
+                    section_notes.append('+ {}: 补 match_index_count = {}（新版多出一段，限定到本段）'.format(tname, nc.group(1)))
                 new_content += new_section
                 migrated += 1
             else:
@@ -2201,6 +2233,11 @@ class check_indexed_sections():
         drop_set     = set(self.drop_indices or ())
         counts_known = all(count is not None for _, count in trg_segments)
         total_count  = sum(count for _, count in trg_segments if count is not None)
+        # 新版多出一段时才做「补 count」：没写 count 的节在段数变多后会盖到新段上
+        src_segments  = indexed_segments(self.src_indices, self.src_counts)
+        trg_count_of  = {str(start): count for start, count in trg_segments}
+        added_segment = bool(src_segments) and len(trg_segments) > len(src_segments)
+        last_trg_start = str(trg_segments[-1][0]) if trg_segments else None
 
         sections = []
         for m in section_matches:
@@ -2249,6 +2286,22 @@ class check_indexed_sections():
             if idx not in trg_set:
                 notes.insert(0, '! {}: 索引 {} 不在新旧分段表内，跳过'.format(tname, idx))
                 continue
+
+            # 新版多出一段：没写 count 的节要补一行，限定回自己那一段（末段不用管）
+            if added_segment and count is None and idx != last_trg_start:
+                seg_count = trg_count_of.get(idx)
+                if seg_count is not None:
+                    if self.fix:
+                        filled = insert_index_count(m.group(0), seg_count)
+                        if filled:
+                            content = content[:m.start()] + filled + content[m.end():]
+                            changed += 1
+                            notes.insert(0, '+ {}: 补 match_index_count = {}（新版多出一段，限定到本段）'.format(
+                                tname, seg_count))
+                    else:
+                        notes.insert(0, '! {}: 索引 {} 没限定范围，建议补 match_index_count = {}'.format(
+                            tname, idx, seg_count))
+                    continue
 
             seg = segment_of(trg_segments, idx)
             if count is None or not seg or seg[1] is None or count == str(seg[1]):
@@ -3894,12 +3947,24 @@ hash_commands = {
 
     # MARK: Belle铃
     #IB
-    #3.0版本铃的模型发生了较大变化，3.0版本之前的mod将无法通过简单的hash替换来适配3.0之后的版本，故取消更新
     '3acf9aea': [(log, ('3.0: Belle Hair IB Hash',)), (add_ib_check_if_missing,)],
     'c2b4ce3a': [(log, ('3.0: Belle Body IB Hash',)), (add_ib_check_if_missing,)],
     '9a9780a7': [(log, ('1.0: Belle Face IB Hash',)), (add_ib_check_if_missing,)],
     #VB
-    
+    '1817f3ca': [
+        (log, ('1.2 -> 1.3: Belle Body IB Hash',)),
+        (update_hash, ('c2b4ce3a',)),
+        (transfer_indexed_sections, {
+            'src_indices': ['0', '-1'],
+            'trg_indices': ['0', '31275'],  
+        })],
+    'd2844c01': [(log, ('2.8 -> 3.0: Belle Body Position Hash',)), (update_hash, ('5838ad30',)),],
+    '801edbf4': [(log, ('2.8 -> 3.0: Belle Body Texcoord Hash',)), (update_hash, ('40a897ab',)),],
+    'c92a17d8': [(log, ('2.8 -> 3.0: Belle Body Blend Hash',)), (update_hash, ('3ee01622',)),],
+    'ac1c8f80': [(log, ('2.8 -> 3.0: Belle Body Draw Hash',)), (update_hash, ('bea2b94e',)),],
+
+    '403eace9': [(log, ('2.8 -> 3.0: Belle HairShadow IB Hash',)), (update_hash, ('jinyong',)),],
+
     #铃与皮肤之间一个含有1de8fc08一个含有ccc76aea互相冲突，故取消更新
     #'73a1352f': [(log, ('1.7 -> 2.0: Belle Face LightMap Texcoord Hash',)), (update_hash, ('1de8fc08',))],    
     #'ccc76aea': [(log, ('1.7 -> 2.0: Belle Face LightMap Texcoord Hash',)), (update_hash, ('1de8fc08',))],
