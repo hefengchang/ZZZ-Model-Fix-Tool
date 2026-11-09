@@ -37,6 +37,11 @@ r"""
 
     五类互相独立，哪个命中修哪个；都没命中就什么都不做。
 
+    逐帧动态 mod（ini 里带按时间切换的变量，或同一网格十几套编号缓冲）
+    默认整包不处理，会写明原因并问一次「仍然强制修复吗」。
+    选强制修复就照普通 mod 走一遍索引与顶点这一步（改前照样备份），
+    但网格拆分仍然跳过 —— 动态 mod 的拆分要用独立的逐帧脚本。
+
 三套模式（启动时选；拖放界面输 m 可以换）
     1 = 索引与顶点修复（默认）
         就是上面说的这两样：VGX 按角色表，texcoord 按 TEXCOORD_TARGETS
@@ -180,6 +185,14 @@ class IvConsoleAsker:
         print('    {}1 = 要{}'.format(Style.GREEN, Style.RESET))
         print('    {}2 = 不要，这次不动它{}'.format(Style.GREEN, Style.RESET))
         return ask('  选 1 / 2（直接回车 = 要）: ').strip() != '2'
+
+    def force_unsupported(self, reason):
+        """逐帧动态 mod：返回 True = 仍然强制修复"""
+        print(c('  这种 mod 的骨骼/缓冲结构和普通 mod 不一样，强制修复可能改不出能用的模型。',
+                Style.YELLOW))
+        print(c('  改前照样备份，想反悔可以选 2 还原。', Style.YELLOW))
+        answer = ask('  仍然强制修复吗？输入 y 回车继续（直接回车 = 不修，跳过）: ')
+        return answer.strip().lower() in ('y', 'yes', '1', '是')
 
     def confirm(self, summary):
         """写文件前的总确认：返回 True = 动手"""
@@ -354,6 +367,23 @@ VGX_CHARACTERS = [
         # 整件替换：mod 上衣 6633 顶点 vs 游戏 Shirt 1296，一致率没有可比性。
         # 套表后一致率反而下降，但表本身是对的（已验证产物就是这么套的）。
         'ignore_dump_judge': True,
+    },
+    {
+        'name':   '哲-泳装 身体 2.5->3.0',
+        # 2.5 泳装身体 100 条骨索引（2.5->3.0）；hashes 同时含旧/新，
+        # hash 更新前后都能命中。
+        'hashes': ['9741e2f0', '4fe696c8', '18e704a8', 'd4147320', 'd6c86c1e', 'acfe9fe4',
+                   '19a3f02e', '44accf08', '9ab40475', '71a703c7', '31d424fc'],
+        'old':    [4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 27, 28, 29, 31,
+                   32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
+                   54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 77, 78,
+                   88, 89, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 109, 110, 111, 112,
+                   113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124],
+        'new':    [6, 7, 8, 5, 9, 4, 12, 11, 14, 16, 13, 15, 18, 17, 21, 20, 23, 25, 22, 24, 33, 35, 34, 36,
+                   37, 38, 39, 42, 41, 40, 43, 44, 45, 28, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 32,
+                   57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 29, 27, 31, 78, 77,
+                   89, 88, 94, 95, 92, 96, 93, 98, 99, 100, 101, 102, 103, 97, 105, 104, 110, 113, 114, 111,
+                   115, 112, 117, 109, 118, 119, 120, 121, 122, 116, 124, 123],
     },
 
 ]
@@ -656,7 +686,7 @@ def unsupported_mod_reason(target) -> str:
                 reason = '同一网格有 {} 套编号缓冲'.format(_sets)
         if reason:
             return ('这是一个逐帧动态动画 mod（{}）：'
-                    '索引与顶点修复/拆分不支持，这一步不改任何文件。'.format(reason))
+                    '索引与顶点修复/拆分不支持。'.format(reason))
     return ''
 
 
@@ -6814,10 +6844,11 @@ def merged_draw_apply(planned, total=None, done0=0):
             iv_progress(done0 + index, total, ini_path.name)
 
 
-def apply_fix(target: Path, verdict=True):
-    reason = unsupported_mod_reason(target)
+def apply_fix(target: Path, verdict=True, force_dynamic=False):
+    # force_dynamic：调用方已经问过用户「强制修复动态 mod」，这里不再拦
+    reason = '' if force_dynamic else unsupported_mod_reason(target)
     if reason:
-        print(c(reason, Style.RED))
+        print(c(reason + '这一步不改任何文件。', Style.RED))
         return dict(vgx=0, tex=0, limit=0, off=0, auto=0, merge=0, changed=False,
                     cancelled=True, error=reason)
     print('目录: {}'.format(target))
@@ -7366,11 +7397,19 @@ def run_once(action, target: Path):
     if action == 'restore':
         restore(target)
         return
-    reason = unsupported_mod_reason(target)
+    # 通用脸部修复只看内嵌名单里的 hash，不碰帧缓冲结构，动态 mod 也照修
+    force_dynamic = False
+    reason = '' if FIX_MODE == 'universal' else unsupported_mod_reason(target)
     if reason:
         print()
-        print(c('结论：' + reason, Style.RED))
-        return
+        print(c('结论：' + reason + '这一步不改任何文件。', Style.RED))
+        if FIX_MODE == 'split':
+            return
+        if not iv_asker().force_unsupported(reason):
+            print(c('结论：已跳过，这个 mod 没有任何改动。', Style.YELLOW))
+            return
+        force_dynamic = True
+        print(c('已选择强制修复：按普通 mod 的流程往下走。', Style.YELLOW))
     if FIX_MODE == 'universal':
         apply_universal(target)
     elif FIX_MODE == 'split':
@@ -7379,7 +7418,7 @@ def run_once(action, target: Path):
         # 索引与顶点修复 + 网格拆分合并成一步：拆分要用这一步换好的骨号/格式；
         # 不需要拆的网格（单分量 / hash 对不上参照）拆分那步自己会跳过。
         # 两步各自的"结论"行不单独出，最后合并成一行总结
-        fix = apply_fix(target, verdict=False)
+        fix = apply_fix(target, verdict=False, force_dynamic=force_dynamic)
         if fix is None:
             print(c('结论：修复已中止，这个 mod 没有任何改动。', Style.YELLOW))
             return
@@ -7389,6 +7428,18 @@ def run_once(action, target: Path):
             return
         if fix.get('cancelled'):
             print(c('结论：已取消，这个 mod 没有任何改动。', Style.YELLOW))
+            return
+        if force_dynamic:
+            # 动态 mod 只强制做索引与顶点这一步；拆分仍然跳过（写出来会把其它帧画错）
+            if fix.get('changed'):
+                print()
+                print(c('结论：已强制修复索引与顶点 —— VGX {} 个 buf / 顶点格式 {} 个 buf / '
+                        '顶点上限 {} 个 ini / 掐笔 {} 个 ini；网格拆分已跳过。'.format(
+                            fix.get('vgx', 0), fix.get('tex', 0),
+                            fix.get('limit', 0), fix.get('off', 0)), Style.GREEN))
+            else:
+                print(c('结论：强制修复没有要改的地方（这个 mod 不需要索引与顶点修复）。',
+                        Style.YELLOW))
             return
         split = apply_split(target, verdict=False) or {}
         if split.get('aborted'):

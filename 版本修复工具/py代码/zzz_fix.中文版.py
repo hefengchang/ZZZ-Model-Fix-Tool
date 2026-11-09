@@ -1366,6 +1366,8 @@ def main():
         process_folder('.')
 
     print('自动修复已完成!')
+    # 收尾提示：hash 是最新的不等于模型没问题，格式 / 骨索引要另跑「索引与顶点修复」
+    print('脸破碎和身体拉伸形变等问题请使用索引与顶点修复')
     drag_drop_loop()
 
 
@@ -10498,6 +10500,7 @@ hash_commands = {
     '4894246e': [(log, ('1.5 -> 1.6: Wise Face IB Hash',)),       (update_hash, ('1fdaf388',))],
     'b300256d': [(log, ('1.7 -> 2.0: Wise Face Texcoord Hash',)), (update_hash, ('ebe9f31b',))],
     'ebe9f31b': [(log, ('2.0 -> 2.1: Wise Face Texcoord Hash',)), (update_hash, ('c83b6cbf',))],
+    '757bc7cc': [(log, ('2.8 -> 3.0: Wise Face Blend Hash',)), (update_hash, ('015fbf96',))],
 
     '054ea752': [(log, ('1.0 -> 1.1: Wise Body IB Hash',)),       (update_hash, ('8d6acf4e',))],
     '73c48816': [(log, ('1.0 -> 1.1: Wise Body Draw Hash',)),     (update_hash, ('b581dc0a',))],
@@ -10515,7 +10518,7 @@ hash_commands = {
     'f425bd04': [(log, ('2.0 -> 2.1: Wise Body Texcoord Hash',)), (update_hash, ('91fbd2fa',))],
 
     'cb22cb95': [(log, ('1.2 -> 1.3: Wise Bag Texcoord Hash',)),    (update_hash, ('2ae08ae7',))],
-    '2ae08ae7': [(log, ('2.0 -> 2.1: Wise Bag Texcoord Hash',)),    (update_hash, ('8d825ff1',))],
+    '2ae08ae7': [(log, ('2.0 -> 2.1: Wise Bag Texcoord Hash',)),    (update_hash, ('8d825ff1',))],    
 
     #Texture纹理
     # Face脸部
@@ -10699,11 +10702,46 @@ hash_commands = {
     # MARK: Wiseswimwear哲·泳装
     #IB
     #3.0版本哲·泳装的模型发生了较大变化，3.0版本之前的mod将无法通过简单的hash替换来适配3.0之后的版本，故取消更新
-    '0ec31440': [(log, ('3.0: Wiseswimwear Face IB Hash',)), (add_ib_check_if_missing,)],
+    '0ec31440': [(log, ('3.0: Wiseswimwear Hair IB Hash',)), (add_ib_check_if_missing,)],
     '19a3f02e': [(log, ('3.0: Wiseswimwear Body IB Hash',)), (add_ib_check_if_missing,)],
     #VB
     'c83b6cbf': [(log, ('3.0 -> 3.1: WiseSwimwear Face-脸 texcoord_vb Hash',)), (update_hash, ('2b320847',))],
+
+
+    '4fe696c8': [
+        (log, ('3.0: WiseSwimwear Body-身体 ib Hash',)),
+        (update_hash, ('19a3f02e',)),
+        (transfer_indexed_sections, {
+            'src_indices': ['0', '52278'],
+            'trg_indices': ['0', '51270'],
+        })],    
+    '18e704a8': [(log, ('2.8 -> 3.0: Wiseswimwear Body Draw Hash',)),     (update_hash, ('44accf08',))],
+    'd6c86c1e': [(log, ('2.8 -> 3.0: Wiseswimwear Body Position Hash',)), (update_hash, ('71a703c7',))],
+    'acfe9fe4': [(log, ('2.8 -> 3.0: Wiseswimwear Body Texcoord Hash',)), (update_hash, ('31d424fc',))],
+
     '9741e2f0': [(log, ('2.1 -> 2.2: Wiseswimwear Body Blend Hash',)), (update_hash, ('d4147320',))],
+    'd4147320': [(log, ('2.8 -> 3.0: Wiseswimwear Body Blend Hash',)), (update_hash, ('9ab40475',))],
+
+    'cb272754': [
+        (log, ('3.0: WiseSwimwear Hair-头发 ib Hash',)),
+        (update_hash, ('0ec31440',)),
+        (transfer_indexed_sections, {
+            'src_indices': ['0'],
+            'trg_indices': ['0', '1008'],
+        })],
+    '77045a80': [(log, ('2.8 -> 3.0: Wiseswimwear Hair Draw Hash',)),     (update_hash, ('20f40e82',))],
+    '16ac44f6': [(log, ('2.8 -> 3.0: Wiseswimwear Hair Position Hash',)), (update_hash, ('1a6be2b0',))],
+    '5c5bde90': [(log, ('2.8 -> 3.0: Wiseswimwear Hair Texcoord Hash',)), (update_hash, ('951a90bf',))],
+    '82396952': [(log, ('2.8 -> 3.0: Wiseswimwear Hair Blend Hash',)), (update_hash, ('16c55ecc',))],
+
+    '3f771e63': [(log, ('2.8 -> 3.0: Wiseswimwear HairShadow IB Hash',)),       (update_hash, ('8d08b190',))],
+    '8e9a12c7': [(log, ('2.8 -> 3.0: Wiseswimwear HairShadow Draw Hash',)),     (update_hash, ('681651f9',))],
+    '14fff21a': [(log, ('2.8 -> 3.0: Wiseswimwear HairShadow Position Hash',)), (update_hash, ('4af493e5',))],
+    '49d81f9a': [(log, ('2.8 -> 3.0: Wiseswimwear HairShadow Texcoord Hash',)), (update_hash, ('ad7d7eca',))],
+    'a2c79f8d': [(log, ('2.8 -> 3.0: Wiseswimwear HairShadow Blend Hash',)), (update_hash, ('795e9a7c',))],
+
+
+
     #Texture纹理
     # Body身体
     'd476035d': [
@@ -13261,6 +13299,11 @@ IV_HELP_TEXT = '''索引与顶点修复 —— 使用说明
         骨索引推不出）就整单不修，会写清卡在哪。
         拆出来的文件记在 mod 目录的 split_created.json，点"还原"会删掉它们。
 
+        逐帧动态 mod（ini 里带按时间切换的变量，或同一网格十几套编号缓冲）
+        默认整包不处理，日志会写明原因，并问一次「仍然强制修复吗」。
+        选强制修复就照普通 mod 走一遍索引与顶点这一步（改前照样备份），
+        但网格拆分仍然跳过 —— 动态 mod 的拆分要用独立的逐帧脚本。
+
     通用脸部修复
         3.1 -> 3.2 更新里 texcoord 变过的那批网格，只有一种变化，写死在程序里，
         不用填格式，也不用选参照：
@@ -13487,6 +13530,14 @@ class IvConsoleAsker:
         print('    {}2 = 不要，这次不动它{}'.format(Style.GREEN, Style.RESET))
         return ask('  选 1 / 2（直接回车 = 要）: ').strip() != '2'
 
+    def force_unsupported(self, reason):
+        """逐帧动态 mod：返回 True = 仍然强制修复"""
+        print(c('  这种 mod 的骨骼/缓冲结构和普通 mod 不一样，强制修复可能改不出能用的模型。',
+                Style.YELLOW))
+        print(c('  改前照样备份，想反悔可以选 2 还原。', Style.YELLOW))
+        answer = ask('  仍然强制修复吗？输入 y 回车继续（直接回车 = 不修，跳过）: ')
+        return answer.strip().lower() in ('y', 'yes', '1', '是')
+
     def confirm(self, summary):
         """写文件前的总确认：返回 True = 动手"""
         print(c('不要对不需要修复的 mod 运行本工具!!!', Style.RED))
@@ -13693,6 +13744,23 @@ VGX_CHARACTERS = [
         # 整件替换：mod 上衣 6633 顶点 vs 游戏 Shirt 1296，一致率没有可比性。
         # 套表后一致率反而下降，但表本身是对的（已验证产物就是这么套的）。
         'ignore_dump_judge': True,
+    },
+    {
+        'name':   '哲-泳装 身体 2.5->3.0',
+        # 2.5 泳装身体 100 条骨索引（2.5->3.0）；hashes 同时含旧/新，
+        # hash 更新前后都能命中。
+        'hashes': ['9741e2f0', '4fe696c8', '18e704a8', 'd4147320', 'd6c86c1e', 'acfe9fe4',
+                   '19a3f02e', '44accf08', '9ab40475', '71a703c7', '31d424fc'],
+        'old':    [4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 27, 28, 29, 31,
+                   32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
+                   54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 77, 78,
+                   88, 89, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 109, 110, 111, 112,
+                   113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124],
+        'new':    [6, 7, 8, 5, 9, 4, 12, 11, 14, 16, 13, 15, 18, 17, 21, 20, 23, 25, 22, 24, 33, 35, 34, 36,
+                   37, 38, 39, 42, 41, 40, 43, 44, 45, 28, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 32,
+                   57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 29, 27, 31, 78, 77,
+                   89, 88, 94, 95, 92, 96, 93, 98, 99, 100, 101, 102, 103, 97, 105, 104, 110, 113, 114, 111,
+                   115, 112, 117, 109, 118, 119, 120, 121, 122, 116, 124, 123],
     },
 
 ]
@@ -13993,7 +14061,7 @@ def unsupported_mod_reason(target) -> str:
                 reason = '同一网格有 {} 套编号缓冲'.format(_sets)
         if reason:
             return ('这是一个逐帧动态动画 mod（{}）：'
-                    '索引与顶点修复/拆分不支持，这一步不改任何文件。'.format(reason))
+                    '索引与顶点修复/拆分不支持。'.format(reason))
     return ''
 
 
@@ -20334,10 +20402,11 @@ def merged_draw_apply(planned, total=None, done0=0):
             iv_progress(done0 + index, total, ini_path.name)
 
 
-def apply_fix(target: Path, verdict=True):
-    reason = unsupported_mod_reason(target)
+def apply_fix(target: Path, verdict=True, force_dynamic=False):
+    # force_dynamic：调用方已经问过用户「强制修复动态 mod」，这里不再拦
+    reason = '' if force_dynamic else unsupported_mod_reason(target)
     if reason:
-        print(c(reason, Style.RED))
+        print(c(reason + '这一步不改任何文件。', Style.RED))
         return dict(vgx=0, tex=0, limit=0, off=0, auto=0, merge=0, changed=False,
                     cancelled=True, error=reason)
     print('目录: {}'.format(target))
@@ -20757,11 +20826,19 @@ def run_once(action, target: Path):
     if action == 'restore':
         restore(target)
         return
-    reason = unsupported_mod_reason(target)
+    # 通用脸部修复只看内嵌名单里的 hash，不碰帧缓冲结构，动态 mod 也照修
+    force_dynamic = False
+    reason = '' if FIX_MODE == 'universal' else unsupported_mod_reason(target)
     if reason:
         print()
-        print(c('结论：' + reason, Style.RED))
-        return
+        print(c('结论：' + reason + '这一步不改任何文件。', Style.RED))
+        if FIX_MODE == 'split':
+            return
+        if not iv_asker().force_unsupported(reason):
+            print(c('结论：已跳过，这个 mod 没有任何改动。', Style.YELLOW))
+            return
+        force_dynamic = True
+        print(c('已选择强制修复：按普通 mod 的流程往下走。', Style.YELLOW))
     if FIX_MODE == 'universal':
         apply_universal(target)
     elif FIX_MODE == 'split':
@@ -20770,7 +20847,7 @@ def run_once(action, target: Path):
         # 索引与顶点修复 + 网格拆分合并成一步：拆分要用这一步换好的骨号/格式；
         # 不需要拆的网格（单分量 / hash 对不上参照）拆分那步自己会跳过。
         # 两步各自的"结论"行不单独出，最后合并成一行总结
-        fix = apply_fix(target, verdict=False)
+        fix = apply_fix(target, verdict=False, force_dynamic=force_dynamic)
         if fix is None:
             print(c('结论：修复已中止，这个 mod 没有任何改动。', Style.YELLOW))
             return
@@ -20780,6 +20857,18 @@ def run_once(action, target: Path):
             return
         if fix.get('cancelled'):
             print(c('结论：已取消，这个 mod 没有任何改动。', Style.YELLOW))
+            return
+        if force_dynamic:
+            # 动态 mod 只强制做索引与顶点这一步；拆分仍然跳过（写出来会把其它帧画错）
+            if fix.get('changed'):
+                print()
+                print(c('结论：已强制修复索引与顶点 —— VGX {} 个 buf / 顶点格式 {} 个 buf / '
+                        '顶点上限 {} 个 ini / 掐笔 {} 个 ini；网格拆分已跳过。'.format(
+                            fix.get('vgx', 0), fix.get('tex', 0),
+                            fix.get('limit', 0), fix.get('off', 0)), Style.GREEN))
+            else:
+                print(c('结论：强制修复没有要改的地方（这个 mod 不需要索引与顶点修复）。',
+                        Style.YELLOW))
             return
         split = apply_split(target, verdict=False) or {}
         if split.get('aborted'):
@@ -21040,6 +21129,18 @@ class IvGuiAsker:
                                             [('要', True), ('不要，这次不动它', False)], True),
             True))
 
+    def force_unsupported(self, reason):
+        """逐帧动态 mod：返回 True = 仍然强制修复"""
+        msg = ('{}\n\n'
+               '· 这种 mod 的骨骼/缓冲结构和普通 mod 不一样，强制修复可能改不出能用的模型\n'
+               '· 改前照样自动备份，想反悔可以点「还原」\n\n'
+               '仍然强制修复吗？').format(reason)
+        return bool(self._ask(
+            lambda: self.app._dialog_choice(
+                '动态 mod —— 强制修复？', msg,
+                [('不修，跳过（推荐）', False), ('仍然强制修复', True)], False),
+            False))
+
     def confirm(self, summary):
         """写文件前的总确认：返回 True = 动手"""
         msg = ('即将写入（每个文件改前都会自动备份）：\n\n{}\n\n'
@@ -21224,6 +21325,12 @@ class App:
             self.log.tag_configure('warn', foreground=p['TAG_WARN'])
         except Exception:
             pass
+        # 索引面板底部「注意」那行：用的是状态橙，不在装饰角色里，切主题时单独跟
+        # （夜间 #ffab52，日间 #8a5a00 —— 白底上浅橙看不清）
+        try:
+            self.iv_note.configure(fg=p['TAG_WARN'])
+        except Exception:
+            pass
         # 状态控件按记忆的模式重设（保证切主题后 已完成/失败 等提示色同步）
         try:
             if self._chip_mode == 'ok':
@@ -21332,7 +21439,7 @@ class App:
         _geom = _cfg_win.get('window_geometry')
         if not (isinstance(_geom, str)
                 and re.match(r'^\d+x\d+([+-]\d+[+-]\d+)?$', _geom)):
-            _geom = '1080x740'          # 左侧多了修复工具标签栏，宽高各留一点
+            _geom = '1080x856'          # 左侧多了修复工具标签栏，宽高各留一点
         root.geometry(_geom)
         if _cfg_win.get('window_zoomed'):
             try:
@@ -22922,6 +23029,13 @@ class App:
                 fg=THEMES[self.theme]['STAT_OK'])
             self._file_mode = 'ok'
         self._log(msg, 'accent')
+        # 收尾提示：hash 是最新的不等于模型没问题，格式 / 骨索引要另跑「索引与顶点修复」
+        self._log('脸破碎和身体拉伸形变等问题请使用索引与顶点修复', 'warn')
+        # 同一条提示也放进「已更新」日志：只看那一页的人同样能看到。
+        # 只在真有更新时放 —— 否则 _pend_ok 非空会触发跳转到「已更新」页，
+        # 没更新的人被带到空页上
+        if changed:
+            self._pend_ok.append(('脸破碎和身体拉伸形变等问题请使用索引与顶点修复', 'warn'))
         # 结束页签跳转：有实际修复内容 → 已更新日志；无 → 完整日志
         try:
             if changed:
