@@ -22,7 +22,7 @@ import webbrowser
 import zipfile
 
 # 程序版本号：唯一维护处，更新版本只改这一行
-APP_VERSION = 'v3.3A'
+APP_VERSION = 'v3.3B'
 
 # ================= 自动更新配置 =================
 # 发布新版本的仓库："用户名/仓库名"（Gitee 优先，GitHub 兜底）。
@@ -46,6 +46,11 @@ from tkinter import ttk, filedialog, messagebox
 # ================= 同目录存在 txt 时程序优先读文件，打包后无 txt 用此内嵌版）
 CHANGELOG_TEXT = '''==============================
 ZZZ Fix 工具 - 全部更新历史
+
+版本3.3B
+--------
+1.新增：赛维里安Hash 值支持对应的修复。
+2.优化：索引与顶点修复遇到逐帧动态 mod 时，不再直接拒绝，会先问一次是否强制修复。
 
 版本3.3A
 --------
@@ -9485,6 +9490,189 @@ hash_commands = {
         (log,                           ('1.1: Seth BodyA MaterialMap 1024p Hash',)),
         (add_section_if_missing,        ('00172ec3', 'Seth.Body.IB', 'match_priority = 0\n')),
         (multiply_section_if_missing,   ('732d3f81', 'Seth.BodyA.MaterialMap.2048')),
+    ],
+
+
+    # MARK: Severian赛维里安
+    #IB
+    '1a786493': [(log, ('3.3: Severian Body IB Hash',)), (add_ib_check_if_missing,)],
+    '65e63a74': [(log, ('3.3: Severian Eyebrow IB Hash',)), (add_ib_check_if_missing,)],
+    '1c78c21e': [(log, ('3.3: Severian Face IB Hash',)), (add_ib_check_if_missing,)],
+    'dfc9cd38': [(log, ('3.3: Severian Hair IB Hash',)), (add_ib_check_if_missing,)],
+    'b3fdc4d0': [(log, ('3.3: Severian HairShadow IB Hash',)), (add_ib_check_if_missing,)],
+    'b95f6269': [(log, ('3.3: Severian Handcuffs IB Hash',)), (add_ib_check_if_missing,)],
+    'c1196eee': [(log, ('3.3: Severian LeftArm IB Hash',)), (add_ib_check_if_missing,)],
+    '425e096c': [(log, ('3.3: Severian LeftArm IB Hash',)), (add_ib_check_if_missing,)],
+    '0087bea2': [(log, ('3.3: Severian Tail IB Hash',)), (add_ib_check_if_missing,)],
+    'b12e74cc': [(log, ('3.3: Severian TrenchCoat IB Hash',)), (add_ib_check_if_missing,)],
+    '4e7b90e1': [(log, ('3.3: Severian weapon IB Hash',)), (add_ib_check_if_missing,)],
+    #VB
+    #Texture纹理
+    # Face
+    '0ea1de92': [
+        (log,                           ('3.3: Severian FaceA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('bd8344d5', 'Severian.FaceA.Diffuse.1024')),
+    ],
+    'bd8344d5': [
+        (log,                           ('3.3: Severian FaceA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('0ea1de92', 'Severian.FaceA.Diffuse.2048')),
+    ],
+    'f0d3dadb': [
+        (log,                           ('3.3: Severian FaceB Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('5f31dd89', 'Severian.FaceB.Diffuse.1024')),
+    ],
+    '5f31dd89': [
+        (log,                           ('3.3: Severian FaceB Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('f0d3dadb', 'Severian.FaceB.Diffuse.2048')),
+    ],
+    
+
+    # Body
+    'e8d1f2f1': [
+        (log,                           ('3.3: Severian BodyA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('b32307bb', 'Severian.BodyA.Diffuse.1024')),
+    ],
+    'b32307bb': [
+        (log,                           ('3.3: Severian BodyA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('e8d1f2f1', 'Severian.BodyA.Diffuse.2048')),
+    ],
+    '8dcebaeb': [
+        (log,                           ('3.3: Severian BodyA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('10bfb436', 'Severian.BodyA.LightMap.1024')),
+    ],
+    '10bfb436': [
+        (log,                           ('3.3: Severian BodyA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('8dcebaeb', 'Severian.BodyA.LightMap.2048')),
+    ],
+    '851c5988': [
+        (log,                           ('3.3: Severian BodyA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('43458cec', 'Severian.BodyA.MaterialMap.1024')),
+    ],
+    '43458cec': [
+        (log,                           ('3.3: Severian BodyA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('851c5988', 'Severian.BodyA.MaterialMap.2048')),
+    ],
+        
+    # Hair
+    '3179efd7': [
+        (log,                           ('3.3: Severian HairA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('533dc2f3', 'Severian.HairA.Diffuse.1024')),
+    ],
+    '533dc2f3': [
+        (log,                           ('3.3: Severian HairA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('3179efd7', 'Severian.HairA.Diffuse.2048')),
+    ],
+    'e0183196': [
+        (log,                           ('3.3: Severian HairA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('0d298bc0', 'Severian.HairA.LightMap.1024')),
+    ],
+    '0d298bc0': [
+        (log,                           ('3.3: Severian HairA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('e0183196', 'Severian.HairA.LightMap.2048')),
+    ],
+    'ae5b72a8': [
+        (log,                           ('3.3: Severian HairA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('a4661cdd', 'Severian.HairA.MaterialMap.1024')),
+    ],
+    'a4661cdd': [
+        (log,                           ('3.3: Severian HairA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('ae5b72a8', 'Severian.HairA.MaterialMap.2048')),
+    ],
+    
+    # Handcuffs
+    '4ff8724c': [
+        (log,                           ('3.3: Severian HandcuffsA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('f3890756', 'Severian.HandcuffsA.Diffuse.1024')),
+    ],
+    'f3890756': [
+        (log,                           ('3.3: Severian HandcuffsA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('4ff8724c', 'Severian.HandcuffsA.Diffuse.2048')),
+    ],
+    '3fde6ee9': [
+        (log,                           ('3.3: Severian HandcuffsA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('563de7e6', 'Severian.HandcuffsA.LightMap.1024')),
+    ],
+    '563de7e6': [
+        (log,                           ('3.3: Severian HandcuffsA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('3fde6ee9', 'Severian.HandcuffsA.LightMap.2048')),
+    ],
+    'bd135b6e': [
+        (log,                           ('3.3: Severian HandcuffsA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('1f163242', 'Severian.HandcuffsA.MaterialMap.1024')),
+    ],
+    '1f163242': [
+        (log,                           ('3.3: Severian HandcuffsA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('bd135b6e', 'Severian.HandcuffsA.MaterialMap.2048')),
+    ],
+    
+    # Tail
+    'b4a0d995': [
+        (log,                           ('3.3: Severian TailA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('ec1b60ce', 'Severian.TailA.Diffuse.1024')),
+    ],
+    'ec1b60ce': [
+        (log,                           ('3.3: Severian TailA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('b4a0d995', 'Severian.TailA.Diffuse.2048')),
+    ],
+    '23677d43': [
+        (log,                           ('3.3: Severian TailA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('deaf3723', 'Severian.TailA.LightMap.1024')),
+    ],
+    'deaf3723': [
+        (log,                           ('3.3: Severian TailA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('23677d43', 'Severian.TailA.LightMap.2048')),
+    ],
+    
+    # TrenchCoat
+    '518ec152': [
+        (log,                           ('3.3: Severian TrenchCoatA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('eb4fe1f8', 'Severian.TrenchCoatA.Diffuse.1024')),
+    ],
+    'eb4fe1f8': [
+        (log,                           ('3.3: Severian TrenchCoatA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('518ec152', 'Severian.TrenchCoatA.Diffuse.2048')),
+    ],
+    'eaedd9dd': [
+        (log,                           ('3.3: Severian TrenchCoatA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('a755598a', 'Severian.TrenchCoatA.LightMap.1024')),
+    ],
+    'a755598a': [
+        (log,                           ('3.3: Severian TrenchCoatA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('eaedd9dd', 'Severian.TrenchCoatA.LightMap.2048')),
+    ],
+    '1d807f45': [
+        (log,                           ('3.3: Severian TrenchCoatA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('37be3d1b', 'Severian.TrenchCoatA.MaterialMap.1024')),
+    ],
+    '37be3d1b': [
+        (log,                           ('3.3: Severian TrenchCoatA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('1d807f45', 'Severian.TrenchCoatA.MaterialMap.2048')),
+    ],
+    
+    # weapon
+    '64918699': [
+        (log,                           ('3.3: Severian weaponA Diffuse 2048p Hash',)),
+        (multiply_section_if_missing,   ('138681d2', 'Severian.weaponA.Diffuse.1024')),
+    ],
+    '138681d2': [
+        (log,                           ('3.3: Severian weaponA Diffuse 1024p Hash',)),
+        (multiply_section_if_missing,   ('64918699', 'Severian.weaponA.Diffuse.2048')),
+    ],
+    '8dcf2b61': [
+        (log,                           ('3.3: Severian weaponA LightMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('d0690982', 'Severian.weaponA.LightMap.1024')),
+    ],
+    'd0690982': [
+        (log,                           ('3.3: Severian weaponA LightMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('8dcf2b61', 'Severian.weaponA.LightMap.2048')),
+    ],
+    '4f148670': [
+        (log,                           ('3.3: Severian weaponA MaterialMap 2048p Hash',)),
+        (multiply_section_if_missing,   ('69f72b01', 'Severian.weaponA.MaterialMap.1024')),
+    ],
+    '69f72b01': [
+        (log,                           ('3.3: Severian weaponA MaterialMap 1024p Hash',)),
+        (multiply_section_if_missing,   ('4f148670', 'Severian.weaponA.MaterialMap.2048')),
     ],
 
 
